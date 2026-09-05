@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alongOf,
   downwindGuide,
+  hasPlanViewShape,
   legAt,
   legRuns,
   M_PER_NM,
@@ -180,5 +181,49 @@ describe("downwindGuide", () => {
   it("draws nothing when there is no downwind leg", () => {
     const p = patternProjection(circuit, {}, 400, 400, 20)!;
     expect(downwindGuide(p.points, -8, p.toPx)).toBeNull();
+  });
+});
+
+describe("hasPlanViewShape", () => {
+  /** A track from `alongStart` down to the touchdown point, converging from
+   *  `lateralStart` onto the centerline. */
+  function approach(alongStart: number, lateralStart: number): DeviationSample[] {
+    return Array.from({ length: 20 }, (_, i) => {
+      const f = i / 19;
+      return sample(i, alongStart * (1 - f), lateralStart * (1 - f));
+    });
+  }
+
+  it("draws a carrier final, which the old kind-gate excluded entirely", () => {
+    // Measured shape of production landing #580: 1434 m of lineup correction
+    // over the 3942 m the carrier window captures.
+    expect(hasPlanViewShape(approach(3942, -1434))).toBe(true);
+  });
+
+  it("draws a wide land circuit", () => {
+    expect(hasPlanViewShape(approach(12018, 9430))).toBe(true);
+  });
+
+  it("skips a straight-in, which has no shape to map", () => {
+    expect(hasPlanViewShape(approach(5000, 8))).toBe(false);
+  });
+
+  it("judges the ratio, not metres, so both scales get the same answer", () => {
+    // Same 0.36 bend, three orders of magnitude apart in size: an absolute
+    // metre threshold would have to get one of these wrong.
+    expect(hasPlanViewShape(approach(3942, 1434))).toBe(true);
+    expect(hasPlanViewShape(approach(394, 143))).toBe(true);
+    // ...and near-straight stays near-straight at either scale.
+    expect(hasPlanViewShape(approach(3942, 40))).toBe(false);
+    expect(hasPlanViewShape(approach(394, 4))).toBe(false);
+  });
+
+  it("refuses tracks with nothing to project", () => {
+    expect(hasPlanViewShape(null)).toBe(false);
+    expect(hasPlanViewShape(undefined)).toBe(false);
+    expect(hasPlanViewShape([sample(0, 100, 0), sample(1, 50, 0)])).toBe(false);
+    // A hover-on: plenty of lateral wobble, but it never went anywhere, so
+    // the ratio would divide by almost nothing.
+    expect(hasPlanViewShape(approach(20, 15))).toBe(false);
   });
 });

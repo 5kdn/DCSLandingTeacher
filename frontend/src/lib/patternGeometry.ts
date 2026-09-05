@@ -257,6 +257,63 @@ export function downwindGuide(
   };
 }
 
+/**
+ * Ratio of lateral spread to along-course spread below which a track has no
+ * shape worth drawing as a map.
+ *
+ * Measured over this server's 393 usable approaches (2026-09-05): every one
+ * of the 207 the detector called "overhead" is above 0.05, as is a carrier
+ * final (1434 m lateral over 3942 m along = 0.36), while 69 essentially
+ * straight approaches fall below it. A DISPLAY threshold, not a grading
+ * calibration -- nothing is scored from it.
+ */
+export const PLAN_VIEW_MIN_LATERAL_RATIO = 0.05;
+
+/** Along-course spread below which the ratio above is not meaningful (m). */
+const PLAN_VIEW_MIN_ALONG_M = 100;
+
+/**
+ * Is this track worth drawing as a plan view -- i.e. does it actually bend?
+ *
+ * The question must be asked of the TRACK, never of the approach-pattern
+ * label. The label is a poor proxy for "did it turn": 24 of the 207
+ * overhead-labelled approaches here spread under 300 m laterally (nothing to
+ * draw), while 74 approaches the classifier did not call overhead spread
+ * more than that. Worse, the view used to be gated on `kind === "land"`, so
+ * a carrier approach -- where lineup is the whole point -- never got one.
+ *
+ * The test is a RATIO because it has to hold at two very different scales:
+ * a carrier pass captures 2 nm and its lineup errors are metres, while a
+ * land circuit runs 8 nm wide. Any absolute metre threshold picks one and
+ * mis-serves the other.
+ */
+export function hasPlanViewShape(
+  samples: DeviationSample[] | null | undefined,
+): boolean {
+  if (!samples || samples.length < 3) return false;
+  let latMin = Infinity;
+  let latMax = -Infinity;
+  let alongMin = Infinity;
+  let alongMax = -Infinity;
+  for (const s of samples) {
+    if (typeof s.centerline_deviation === "number") {
+      latMin = Math.min(latMin, s.centerline_deviation);
+      latMax = Math.max(latMax, s.centerline_deviation);
+    }
+    const along = alongOf(s);
+    if (along !== null) {
+      alongMin = Math.min(alongMin, along);
+      alongMax = Math.max(alongMax, along);
+    }
+  }
+  if (!Number.isFinite(latMin) || !Number.isFinite(alongMin)) return false;
+  const alongRange = alongMax - alongMin;
+  // A recording that barely moved along the course (a hover-on, or only the
+  // touchdown itself) has no base for the ratio -- and no map to draw.
+  if (alongRange < PLAN_VIEW_MIN_ALONG_M) return false;
+  return (latMax - latMin) / alongRange >= PLAN_VIEW_MIN_LATERAL_RATIO;
+}
+
 /** Scale bar label, e.g. "0.5 nm". */
 export function scaleBarLabel(meters: number): string {
   const nm = meters / M_PER_NM;

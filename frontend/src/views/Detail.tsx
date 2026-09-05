@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { getLanding } from "../api/client";
 import { PatternTrack } from "../components/PatternTrack";
+import { hasPlanViewShape } from "../lib/patternGeometry";
 import { TimeSeriesChart } from "../components/TimeSeriesChart";
 import { GlideslopeProfileChart } from "../components/GlideslopeProfileChart";
 import {
@@ -105,16 +106,10 @@ export function Detail({ id, onBack }: DetailProps) {
 
   const track = detail.approach_track ?? null;
   const coverage = coverageText(detail.metrics);
-  // A plan view only earns its space when there is a circuit to look at.
-  // "overhead" is the classifier's answer; the lateral test catches the
-  // approaches it left as "unknown" that were in fact flown as patterns.
-  const showPattern =
-    detail.kind === "land" &&
-    !!track &&
-    (detail.approach_pattern === "overhead" ||
-      track.samples.some(
-        (s) => Math.abs(s.centerline_deviation ?? 0) > 500,
-      ));
+  // 平面図を出すかは軌跡の形で決める。進入パターンのラベルでも kind でも
+  // ない (詳細は hasPlanViewShape)。以前は land 限定かつ overhead ラベル
+  // 頼みで、空母着艦には一度も出ず、ラベルが直った途端に陸上でも消えた。
+  const showPattern = hasPlanViewShape(track?.samples);
   const td = detail.touchdown ?? null;
 
   const handleExportCsv = () => {
@@ -201,7 +196,14 @@ export function Detail({ id, onBack }: DetailProps) {
               <>
                 {showPattern && (
                   <>
-                    <h4 className="pattern-heading">パターン軌跡</h4>
+                    {/* 脚を切り出せていない軌跡 (空母のファイナル、旋回進入)
+                        を「パターン軌跡」と呼ぶと、描かれていない脚を探す
+                        ことになる。実際に描けるものの名前を出す。 */}
+                    <h4 className="pattern-heading">
+                      {detail.metrics?.["pattern_downwind_judged"] === true
+                        ? "パターン軌跡"
+                        : "進入軌跡（平面図）"}
+                    </h4>
                     <PatternTrack track={track} metrics={detail.metrics} />
                   </>
                 )}
