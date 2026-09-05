@@ -43,8 +43,16 @@ class TypeClassifier:
         for keyword in self.carrier_keywords:
             if keyword in type_str:
                 return ObjectClass.CARRIER
+        # The aircraft tag has to be the LEADING one, not merely present.
+        # Tacview's hierarchy puts the top-level tag first, and an ejected
+        # pilot is ``Ground+Light+Human+Air+Parachutist`` -- it contains
+        # "Air+" halfway down, so the substring form classified a man under a
+        # parachute as an aircraft and the pipeline graded his descent as a
+        # landing (5 such rows on this server, one of them "on" a carrier).
+        # Checked against all 21 object types this server has recorded: the
+        # parachutist is the only class this changes.
         for keyword in self.aircraft_keywords:
-            if type_str.startswith(keyword) or keyword in type_str:
+            if type_str.startswith(keyword):
                 return ObjectClass.AIRCRAFT
         for keyword in self.static_keywords:
             if keyword in type_str:

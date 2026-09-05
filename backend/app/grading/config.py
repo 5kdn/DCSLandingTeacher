@@ -63,7 +63,9 @@ _DEFAULTS: dict[str, Any] = {
                 "Mi-24", "SA342", "OH-58", "OH58",
             ],
             "fighter": [
-                "F-16", "FA-18", "F/A-18", "F-15", "F-14", "F-5", "F-4",
+                # "F-5E" not "F-5": the bare token also matches "TF-51D",
+                # which put the P-51 trainer on the fighter descent bands.
+                "F-16", "FA-18", "F/A-18", "F-15", "F-14", "F-5E", "F-4",
                 "F-86", "F-100", "F-117", "A-10", "AV8B", "AJS37", "Viggen",
                 "JF-17", "M-2000", "Mirage", "MiG-", "Su-2", "Su-3", "J-11",
                 "Tornado", "EF2000",
@@ -119,8 +121,73 @@ _DEFAULTS: dict[str, Any] = {
             "cut": "CUT",
         },
         "at_ramp_window_s": 3.0,
-        "factors": {},
+        # 空母ファクターの閾値。値はすべて config/grading.yaml からの写しで、
+        # ここで新しい数字は作っていない。
+        #
+        # ここが {} だったために、本番 (設定マウントが空で YAML が読まれない)
+        # では 1 つもファクターが発火せず、どの着艦も無条件に "OK" と
+        # 「センターライン上・グライドスロープ上・速度適正」という講評に
+        # なっていた --- 何も検査していないことが、積極的な合格判定として
+        # 保存されていた。閾値そのものは壊れていない (合成データでは
+        # HIGH / OFFLINE / SLOW が正しく発火する)。欠けていたのは表だけ。
+        #
+        # description だけ写して details は YAML に置いたままにしてある。
+        # UI (Detail.tsx) は description が無いとフロント側のハードコード表に
+        # 落ちるが、その表は POWER を「パワー不足」と書いており、実際に
+        # 発火する POWER (20 秒間の速度幅 > 8.0 m/s = スロットル過操作) とは
+        # 意味が違う --- 写さないと UI が静かに誤った説明を出す。details は
+        # 各行が自分の閾値を日本語で書き下しているので、二重管理すると
+        # 数値がドリフトする面が 2 つに増える。表示が欠けるだけで壊れない。
+        "factors": {
+            "HIGH": {
+                "severity": "major",
+                "gs_deviation_m": 3.0,
+                "description": "グライドスロープ高 - 理想進入経路より著しく高い位置を飛行している",
+            },
+            "LOW": {
+                "severity": "major",
+                "gs_deviation_m": -2.0,
+                "description": "グライドスロープ低 - 理想進入経路より著しく低い位置を飛行している",
+            },
+            "FAST": {
+                "severity": "major",
+                "speed_ratio": 1.07,
+                "description": "速度超過 - 進入速度が適正範囲を超えている",
+            },
+            "SLOW": {
+                "severity": "major",
+                "speed_ratio": 0.93,
+                "description": "速度不足 - 進入速度が適正範囲を下回っている",
+            },
+            "OFFLINE": {
+                "severity": "major",
+                "lateral_deviation_m": 3.0,
+                "description": "センターライン逸脱 - 着艦コースから左右に大きく外れている",
+            },
+            "POWER": {
+                "severity": "minor",
+                "speed_range_ms": 8.0,
+                "description": "パワー変動 - スロットル操作が激しく速度が安定していない",
+            },
+            "BOLTER": {
+                "severity": "major",
+                "auto": True,
+                "description": "ボルター - 全ワイヤーを外して着艦失敗、着艦復行となった",
+            },
+            "BURBLE": {
+                "severity": "minor",
+                "enabled": False,
+                "window_s": 3.0,
+                "baseline_window_s": 12.0,
+                "extra_descent_ms": 1.5,
+                "description": "バーブル (Burble) - 甲板後方の乱気流(バースト)による沈み込み",
+            },
+        },
         "decision": {
+            # 欠けていると三項演算子が else False を選び、「深い LOW は
+            # ウェーブオフ」という規則が既定値に落ちるのではなく規則ごと
+            # 消える (lso_grader.py の deep_low)。
+            "cut_low_gs_deviation_m": -4.5,
             "cut_if_severe_low": True,
             "cut_if_major_count": 3,
             "ok_paren_major_count": 2,

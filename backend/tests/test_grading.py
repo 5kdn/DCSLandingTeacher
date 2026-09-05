@@ -1400,6 +1400,106 @@ def test_land_course_falls_back_to_heading_when_the_window_is_still_turning() ->
     )
 
 
+def test_code_defaults_agree_with_the_shipped_yaml() -> None:
+    """``_DEFAULTS`` and ``config/grading.yaml`` must carry the same numbers.
+
+    This is not tidiness. ``load_grading_config()`` falls back to ``_DEFAULTS``
+    without a word when the configured path is missing, and in production it
+    IS missing -- the container mounts an empty directory over /app/config, so
+    the defaults in code are the live configuration and the YAML is inert.
+    Any value that lives only in the YAML is therefore silently absent from
+    the running server.
+
+    That is how ``lso_grading.factors`` shipped as ``{}``: every carrier
+    landing came out "OK" with the comment "On centerline, on glidepath, on
+    speed." because not one factor could fire. No test noticed, because every
+    LSO test loads the YAML (``CONFIG`` above) and none exercised the path
+    production actually runs.
+
+    Compares thresholds only. Prose (``details``) is deliberately kept in the
+    YAML alone, so it is excluded rather than duplicated.
+
+    LSO factors that the YAML only DECLARES -- the ones marked
+    ``enabled: false`` with no threshold, so the UI could list them -- are
+    allowed to be absent from the defaults, because no grade can depend on
+    them. That exemption is not taken on trust: it is proved per factor
+    below, so adding a real threshold to one of them fails this test.
+    """
+    import yaml
+
+    from app.grading.config import _DEFAULTS
+
+    with open(GRADING_YAML, encoding="utf-8") as stream:
+        shipped = yaml.safe_load(stream)
+
+    PROSE = {"details"}
+    #: Keys the LSO detectors actually read off a factor.
+    ACTIONABLE = {
+        "gs_deviation_m", "speed_ratio", "lateral_deviation_m",
+        "speed_range_ms", "auto", "extra_descent_ms",
+    }
+
+    yaml_factors = shipped["lso_grading"]["factors"]
+    declaration_only = set()
+    for name, cfg in yaml_factors.items():
+        if name in _DEFAULTS["lso_grading"]["factors"]:
+            continue
+        actionable = ACTIONABLE & set(cfg)
+        assert not actionable and cfg.get("enabled") is False, (
+            f"lso_grading.factors.{name} is absent from _DEFAULTS but could still "
+            f"change a grade (enabled={cfg.get('enabled')!r}, keys={sorted(actionable)}). "
+            "Production reads the defaults, so copy it across."
+        )
+        declaration_only.add(name)
+    for name in declaration_only:
+        yaml_factors.pop(name)
+
+    def compare(defaults, yaml_side, path: str, mismatches: list[str]) -> None:
+        if isinstance(defaults, dict) and isinstance(yaml_side, dict):
+            for key in sorted(set(defaults) | set(yaml_side)):
+                if key in PROSE:
+                    continue
+                here = f"{path}.{key}" if path else key
+                if key not in defaults:
+                    mismatches.append(f"{here}: missing from _DEFAULTS (yaml has {yaml_side[key]!r})")
+                elif key not in yaml_side:
+                    mismatches.append(f"{here}: missing from grading.yaml (defaults have {defaults[key]!r})")
+                else:
+                    compare(defaults[key], yaml_side[key], here, mismatches)
+        elif defaults != yaml_side:
+            mismatches.append(f"{path}: defaults={defaults!r} yaml={yaml_side!r}")
+
+    mismatches: list[str] = []
+    for section in ("geometry", "approach", "detection", "land_grading", "lso_grading"):
+        compare(_DEFAULTS[section], shipped[section], section, mismatches)
+    assert not mismatches, "code defaults and grading.yaml disagree:\n  " + "\n  ".join(mismatches)
+
+
+def test_carrier_grading_still_works_when_the_yaml_is_missing() -> None:
+    """The production path: no config file at all, only the code defaults.
+
+    Every other LSO test loads the YAML, so an empty ``factors`` table was
+    invisible to the suite while being exactly what the live server ran.
+    """
+    from app.grading.config import GradingConfig
+
+    defaults_only = GradingConfig({})
+    assert defaults_only.lso_grading["factors"], "no factor can fire without thresholds"
+
+    high = grade_carrier_approach(_carrier_event_analysis(gs_offset_m=6.0), defaults_only)
+    assert [f.name for f in high.factors] == ["HIGH"]
+    assert high.grade == "OK-"
+
+    clean = grade_carrier_approach(_carrier_event_analysis(), defaults_only)
+    assert clean.factors == []
+    assert clean.grade == "OK"
+
+
+def _carrier_event_analysis(**kwargs):
+    event = _carrier_event(**kwargs)
+    return build_approach_analysis(event, CONFIG.carrier_glideslope_deg)
+
+
 def test_carrier_course_prefers_the_touchdown_heading_over_the_track() -> None:
     """On the boat the aircraft de-crabs onto the angled deck at the ramp, so
     the heading reads the deck course even through a turn onto final."""
