@@ -370,22 +370,25 @@ main {
   color: var(--text-dim);
 }
 
-/* The data sheet is two columns only when both halves can actually hold
-   their content. The right half carries the factor table, whose floor is
-   620 px, so two columns need roughly 620 + 620 + gap + padding before they
-   beat one column -- below that the reader gets a horizontal scrollbar on a
-   panel that would have fitted vertically. The old 900 px breakpoint was set
-   from the phone end and left the 900-1100 px band with two cramped columns. */
+/* One column on screen, at every width.
+   ---------------------------------------------------------------------------
+   Measured, not assumed: `main` is capped at max-width 1200 px, which leaves
+   the sheet 1160 px and this grid 1118 px however wide the window is. Two
+   columns are therefore at most (1118 - 24) / 2 = 547 px each -- and the
+   factor table needs 620 px before its four columns of Japanese stop wrapping
+   to one character per line. So the two-column sheet can NEVER give the right
+   half enough room, at any viewport size, and the reader got either a squashed
+   table (before) or a sideways scrollbar inside the panel (a first attempt at
+   this fix, which set the breakpoint at 1320 px by arithmetic that overlooked
+   the 1200 px cap).
+
+   The print stylesheet reached the same conclusion for the same reason and
+   went single-column long ago; on screen there is even less excuse, since a
+   tall page costs nothing but a scroll. */
 .sheet-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 24px;
-}
-
-@media (min-width: 1320px) {
-  .sheet-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .sheet-left,
@@ -608,12 +611,13 @@ main {
 
 /* Print styles for new layout */
 @media print {
-  .sheet-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
+  /* NB: no .sheet-grid rule here. This block used to force two columns on
+     paper, and the later print block below overrode it back to one for a
+     reason it spells out (a ~90 mm column wraps the factor table to one
+     character per line). Two rules disagreeing about the same property, with
+     the outcome decided by source order, is how the screen breakpoint came
+     to be wrong too -- so the losing one is gone rather than left to be
+     misread. */
   .glideslope-profile-chart {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
@@ -1171,13 +1175,9 @@ main {
 }
 
 @media (max-width: 900px) {
-  /* One column. Two ~180 px columns on a phone wrap the info table's
-     headers to one character per line and squeeze the plan view into a
-     thumbnail. */
-  .sheet-grid {
-    display: block;
-  }
-
+  /* The sheet is single-column at every width now (see .sheet-grid), so
+     there is nothing to collapse here any more -- only the spacing that
+     the stacked halves need. */
   .sheet-right {
     margin-top: 16px;
   }
