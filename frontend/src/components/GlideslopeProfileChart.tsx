@@ -220,7 +220,7 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
           data={points}
           margin={{ top: 8, right: 70, bottom: 28, left: 60 }}
         >
-          <CartesianGrid stroke="#22402f" strokeDasharray="3 3" />
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" />
           <XAxis
             dataKey="distance_nm"
             type="number"
@@ -230,25 +230,25 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
             // latter, which had the approach running touchdown-first and
             // contradicting this chart's own caption.
             reversed
-            tick={{ fill: "#9fb8a8", fontSize: 11 }}
+            tick={{ fill: "var(--text-dim)", fontSize: 11 }}
             label={{
               value: "接地点までの距離 (nm)",
               position: "insideBottom",
               offset: -10,
-              fill: "#9fb8a8",
+              fill: "var(--text-dim)",
               fontSize: 11,
             }}
             tickFormatter={(v) => v.toFixed(distAxis.max < 0.5 ? 2 : 1)}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fill: "#9fb8a8", fontSize: 11 }}
+            tick={{ fill: "var(--text-dim)", fontSize: 11 }}
             label={{
               value: "高度 / AGL (ft)",
               angle: -90,
               position: "insideLeft",
               offset: 15,
-              fill: "#9fb8a8",
+              fill: "var(--text-dim)",
               fontSize: 11,
             }}
             domain={[0, aglAxis.max]}
@@ -261,13 +261,13 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fill: "#9fb8a8", fontSize: 11 }}
+            tick={{ fill: "var(--text-dim)", fontSize: 11 }}
             label={{
               value: "GS偏差 (ft)",
               angle: 90,
               position: "insideRight",
               offset: 15,
-              fill: "#9fb8a8",
+              fill: "var(--text-dim)",
               fontSize: 11,
             }}
             domain={[-devHalf.max, devHalf.max]}
@@ -276,9 +276,9 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#10241a",
-              border: "1px solid #2f5c44",
-              color: "#d7efe0",
+              backgroundColor: "var(--bg-panel)",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
             }}
             formatter={(value: number, name: string) => {
               if (name === "agl_ft" || name === "ideal_ft") return [`${Math.round(value)} ft`, name];
@@ -292,7 +292,7 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
             name="理想グライドスロープ"
             dataKey="ideal_ft"
             yAxisId="left"
-            stroke="#39d98a"
+            stroke="var(--series-cl)"
             strokeDasharray="6 4"
             dot={false}
             connectNulls
@@ -305,7 +305,7 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
             name="実飛行AGL"
             dataKey="agl_ft"
             yAxisId="left"
-            stroke="#6ab7ff"
+            stroke="var(--series-gs)"
             dot={false}
             connectNulls
             strokeWidth={2}
@@ -316,7 +316,7 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
           <Line
             name="グライドスロープ偏差"
             dataKey="glideslope_dev_ft"
-            stroke="#ffd166"
+            stroke="var(--series-speed)"
             strokeDasharray="3 3"
             dot={false}
             connectNulls
@@ -330,22 +330,24 @@ export function GlideslopeProfileChart({ track, metrics }: GlideslopeProfileChar
           <ReferenceLine
             x={0}
             yAxisId="left"
-            stroke="#ff4444"
+            stroke="var(--danger)"
             strokeDasharray="4 4"
           />
 
           {/* Base -> final. Left of this the aircraft is still turning and
-              being off the slope is expected; right of it is what is graded. */}
+              being off the slope is expected; right of it is what is graded.
+              区間の境目は系列ではなく注記なので、系列色ではなく muted で引く。
+              系列色を当てると 4 本目のデータ線に見える。 */}
           {rolloutNm !== null && (
             <ReferenceLine
               x={rolloutNm}
               yAxisId="left"
-              stroke="#b98bff"
+              stroke="var(--text-dim)"
               strokeDasharray="6 4"
               label={{
                 value: "ベース→ファイナル",
                 position: "insideTopLeft",
-                fill: "#b98bff",
+                fill: "var(--text-dim)",
                 fontSize: 10,
               }}
             />

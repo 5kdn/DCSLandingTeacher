@@ -47,11 +47,11 @@ function buildRows(track: ApproachTrack): Row[] {
   }));
 }
 
-const AXIS_STYLE = { fill: "#9fb8a8", fontSize: 11 };
+const AXIS_STYLE = { fill: "var(--text-dim)", fontSize: 11 };
 const TOOLTIP_STYLE = {
-  backgroundColor: "#10241a",
-  border: "1px solid #2f5c44",
-  color: "#d7efe0",
+  backgroundColor: "var(--bg-panel)",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
 };
 
 export function TimeSeriesChart({ track }: TimeSeriesChartProps) {
@@ -67,17 +67,17 @@ export function TimeSeriesChart({ track }: TimeSeriesChartProps) {
         <h3>偏差（グライドスロープ / センターライン）</h3>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#22402f" strokeDasharray="3 3" />
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" />
             <XAxis
               dataKey="t"
               tick={AXIS_STYLE}
-              label={{ value: "接地前の時間 (秒)", position: "insideBottom", offset: -2, fill: "#9fb8a8", fontSize: 11 }}
+              label={{ value: "接地前の時間 (秒)", position: "insideBottom", offset: -2, fill: "var(--text-dim)", fontSize: 11 }}
             />
             <YAxis tick={AXIS_STYLE} unit="ft" width={56} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${v} ft`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line name="GS 偏差" dataKey="gs" stroke="#39d98a" dot={false} connectNulls />
-            <Line name="CL 偏差" dataKey="cl" stroke="#ffd166" dot={false} connectNulls />
+            <Line name="GS 偏差" dataKey="gs" stroke="var(--series-gs)" dot={false} connectNulls />
+            <Line name="CL 偏差" dataKey="cl" stroke="var(--series-cl)" dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </section>
@@ -86,12 +86,12 @@ export function TimeSeriesChart({ track }: TimeSeriesChartProps) {
         <h3>速度</h3>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#22402f" strokeDasharray="3 3" />
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" />
             <XAxis dataKey="t" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} unit="kt" width={56} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${v} kt`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line name="対気速度" dataKey="kt" stroke="#6ab7ff" dot={false} connectNulls />
+            <Line name="対気速度" dataKey="kt" stroke="var(--series-speed)" dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </section>
@@ -100,12 +100,12 @@ export function TimeSeriesChart({ track }: TimeSeriesChartProps) {
         <h3>降下率（AGL 差分から算出）</h3>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#22402f" strokeDasharray="3 3" />
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" />
             <XAxis dataKey="t" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} unit="fpm" width={64} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => `${v} fpm`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line name="降下率" dataKey="fpm" stroke="#ff8fa3" dot={false} connectNulls />
+            <Line name="降下率" dataKey="fpm" stroke="var(--series-descent)" dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </section>

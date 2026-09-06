@@ -1,17 +1,58 @@
-/* DCS Landing Teacher — dark radar-green theme, desktop-first, print-ready. */
+/* DCS Landing Teacher — desktop-first, print-ready.
+   ============================================================================
+   カラートークン — FFS 本体 (freedomflight.jp/static/style.css) と同じ系統。
+
+   本体側の方針をそのまま引き継ぐ: 青みネイビー + ネオンミントをやめ、彩度を
+   落としたグラファイト + 燻した真鍮 (brass)。計器盤の暖色照明のイメージ。
+   ここは以前レーダーグリーン (#0b1410 / #39d98a) 単独で、同じサイト内の
+   別アプリに見えていた。面・文字・アクセント・罫線の値は本体からの写し。
+
+   彩度を「敢えて残す」もの (本体と同じ理由: 色だけで意味を判別している):
+     --ok / --danger / --warn  … グレードと稼働状態
+     チャート系列              … 系列を色で見分けている
+   グレーに寄せると情報が読めなくなるので、トーンだけ落として色相は保つ。
+   ========================================================================== */
 
 :root {
-  --bg: #0b1410;
-  --bg-panel: #10241a;
-  --bg-scope: #07130d;
-  --border: #2f5c44;
-  --text: #d7efe0;
-  --text-dim: #9fb8a8;
-  --accent: #39d98a;
-  --accent-dim: #1f7a4f;
-  --warn: #ffd166;
-  --danger: #ff6b6b;
-  --info: #6ab7ff;
+  /* 面 */
+  --bg: #101113;
+  --bg-panel: #17191d;
+  /* 軌跡・スコープの下地。パネルより一段沈めて線を浮かせる。 */
+  --bg-scope: #0b0c0e;
+  /* 文字 */
+  --text: #e8e6e1;
+  --text-dim: #8b8a86;
+  /* アクセント (燻した真鍮) */
+  --accent: #c2a76c;
+  --accent-dim: #8d7a4d;
+  --accent-wash: rgba(194, 167, 108, 0.09);
+  --accent-line: rgba(194, 167, 108, 0.28);
+  /* 状態色 — 意味を持つので彩度は保つ */
+  --ok: #5c9e63;
+  --danger: #cd6a61;
+  --warn: #c39a4e;
+  --ok-wash: rgba(92, 158, 99, 0.12);
+  --danger-wash: rgba(205, 106, 97, 0.12);
+  --warn-wash: rgba(195, 154, 78, 0.12);
+  --muted-wash: rgba(139, 138, 134, 0.12);
+  --info-wash: rgba(127, 155, 181, 0.12);
+  /* 罫線 */
+  --border: #272a2f;
+  --border-soft: #1f2226;
+  /* チャート系列 — 互いに識別できる範囲で彩度を落とす (本体と同じ 8 色から)。
+     1 つのチャートに同居する系列どうしは色相を離す: 実飛行 (真鍮) と理想
+     (青灰) は重なる区間が長いので、暖色/寒色で分ける。 */
+  --info: #7f9bb5;
+  --series-gs: #c2a76c;
+  --series-cl: #7f9bb5;
+  --series-speed: #a08fae;
+  --series-descent: #c08a6e;
+  /* パターンの脚 — 4 本を色で見分けるので、色相は離したまま彩度だけ落とす。
+     ファイナルはアクセント (真鍮)、接地後は破線 + muted で別扱い。 */
+  --leg-entry: #8faa85;
+  --leg-break: #c08a6e;
+  --leg-downwind: #8fb2c9;
+  --leg-base: #a08fae;
 }
 
 * {
@@ -156,7 +197,7 @@ main {
 .landing-table th {
   color: var(--text-dim);
   font-weight: 600;
-  background: rgba(57, 217, 138, 0.06);
+  background: var(--accent-wash);
 }
 
 .landing-row {
@@ -175,7 +216,7 @@ main {
 
 .landing-row:hover,
 .landing-row:focus {
-  background: rgba(57, 217, 138, 0.1);
+  background: var(--accent-wash);
   outline: none;
 }
 
@@ -214,26 +255,30 @@ main {
   padding: 6px 16px;
 }
 
+/* グレードは「状態」なので本体の状態色 (--ok / --warn / --danger) に合わせる。
+   真鍮のアクセントは見出しやリンクなどブランド側に残し、良し悪しの表現には
+   使わない --- 同じ色が「FFS の色」と「良い着陸」の両方を意味すると、どちらの
+   情報も読めなくなる。 */
 .grade-ok {
-  color: #0b1410;
-  background: var(--accent);
+  color: var(--bg);
+  background: var(--ok);
 }
 
 .grade-ok-minus {
-  color: var(--accent);
-  background: rgba(57, 217, 138, 0.15);
-  border-color: var(--accent);
+  color: var(--ok);
+  background: var(--ok-wash);
+  border-color: var(--ok);
 }
 
 .grade-paren-ok {
   color: var(--warn);
-  background: rgba(255, 209, 102, 0.12);
+  background: var(--warn-wash);
   border-color: var(--warn);
 }
 
 .grade-no-grade {
   color: var(--text-dim);
-  background: rgba(159, 184, 168, 0.12);
+  background: var(--muted-wash);
   border-color: var(--text-dim);
 }
 
@@ -245,7 +290,7 @@ main {
 /* Provisional landing awaiting its final outcome (Issue #5). */
 .grade-provisional {
   color: var(--warn);
-  background: rgba(255, 209, 102, 0.12);
+  background: var(--warn-wash);
   border-color: var(--warn);
 }
 
@@ -267,20 +312,24 @@ main {
   border: 1px solid transparent;
 }
 
+/* 3 つのパターンバッジは同じ「wash + 枠線」で揃える。1 つだけベタ塗りだと、
+   分類でしかないものが一覧の中で最も目立つ要素になる。 */
 .pattern-overhead {
-  color: #fff;
-  background: var(--info);
+  color: var(--info);
+  background: var(--info-wash);
+  border-color: var(--info);
 }
 
+/* 進入パターンは良し悪しではなく分類なので、状態色ではなくアクセント側で表す。 */
 .pattern-straight_in {
   color: var(--accent);
-  background: rgba(57, 217, 138, 0.15);
-  border-color: var(--accent);
+  background: var(--accent-wash);
+  border-color: var(--accent-line);
 }
 
 .pattern-unknown {
   color: var(--text-dim);
-  background: rgba(159, 184, 168, 0.12);
+  background: var(--muted-wash);
   border-color: var(--text-dim);
 }
 
@@ -348,7 +397,7 @@ main {
 .info-table th {
   color: var(--text-dim);
   width: 130px;
-  background: rgba(57, 217, 138, 0.05);
+  background: var(--accent-wash);
 }
 
 .sheet-footer {
@@ -377,7 +426,7 @@ main {
 /* ---------- A4 Print Layout for Detail View ---------- */
 
 .grade-panel {
-  background: rgba(57, 217, 138, 0.04);
+  background: var(--accent-wash);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 16px;
@@ -395,7 +444,7 @@ main {
 }
 
 .grade-comment {
-  background: rgba(57, 217, 138, 0.08);
+  background: var(--accent-wash);
   border-left: 3px solid var(--accent);
   padding: 8px 12px;
   margin: 8px 0;
@@ -439,16 +488,16 @@ main {
 }
 
 .legend-color.ideal {
-  background: #39d98a;
-  border: 1px dashed #39d98a;
+  background: var(--accent);
+  border: 1px dashed var(--accent);
 }
 
 .legend-color.actual {
-  background: #6ab7ff;
+  background: var(--info);
 }
 
 .legend-color.deviation {
-  background: #ffd166;
+  background: var(--warn);
 }
 
 .chart-note {
@@ -484,7 +533,7 @@ main {
 
 .factor-table th {
   color: var(--text-dim);
-  background: rgba(57, 217, 138, 0.05);
+  background: var(--accent-wash);
 }
 
 .factor-name {
@@ -507,7 +556,9 @@ main {
 }
 
 .factor-severity.severe {
-  color: #ff0000;
+  /* major (--danger) より一段強い赤。純色 #ff0000 は他のどの色とも系統が
+     合わないので、danger を明るく振った同系で「さらに悪い」を出す。 */
+  color: #e0847c;
 }
 
 .factor-description,
@@ -555,7 +606,7 @@ main {
 }
 
 .scope-ring {
-  stroke: #1f4432;
+  stroke: var(--border);
   stroke-width: 1;
 }
 
@@ -577,7 +628,7 @@ main {
 }
 
 .scope-trail-dot {
-  fill: #aef3cf;
+  fill: var(--text);
 }
 
 .scope-touchdown {
@@ -609,7 +660,7 @@ main {
 }
 
 .grade-comment {
-  background: rgba(57, 217, 138, 0.08);
+  background: var(--accent-wash);
   border-left: 3px solid var(--accent);
   padding: 8px 12px;
   margin: 8px 0;
@@ -638,7 +689,7 @@ main {
 
 .factor-table th {
   color: var(--text-dim);
-  background: rgba(57, 217, 138, 0.05);
+  background: var(--accent-wash);
 }
 
 .factor-name {
@@ -659,7 +710,7 @@ main {
 }
 
 .legend-color.rollout {
-  background: #b98bff;
+  background: var(--leg-base);
 }
 
 .metrics-list {
@@ -842,7 +893,7 @@ main {
   }
 
   .pattern-svg .scope-label {
-    fill: #9fb8a8;
+    fill: var(--text-dim);
   }
 
   .pattern-downwind-label {
@@ -915,7 +966,7 @@ main {
 
   .glideslope-profile-chart .chart-note,
   .glideslope-profile-chart .chart-legend {
-    color: #9fb8a8;
+    color: var(--text-dim);
   }
 
 
@@ -1008,11 +1059,11 @@ main {
 }
 
 .import-dropzone {
-  border: 2px dashed #9aa4b2;
+  border: 2px dashed var(--border);
   border-radius: 8px;
   padding: 1.25rem;
   text-align: center;
-  color: #556;
+  color: var(--text-dim);
   cursor: pointer;
   transition:
     background-color 0.15s,
@@ -1021,8 +1072,8 @@ main {
 
 .import-dropzone:hover,
 .import-dropzone.drag-over {
-  background-color: rgba(64, 128, 255, 0.08);
-  border-color: #4080ff;
+  background-color: var(--accent-wash);
+  border-color: var(--accent);
 }
 
 .import-status {
@@ -1035,15 +1086,24 @@ main {
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   font-size: 0.8rem;
-  background: #e3e7ee;
+  /* 淡色の下地に文字色の指定が無く、暗色テーマでは本文色と同化して読めなく
+     なっていた (明るい背景を前提にした値が残っていた)。グレードバッジと同じ
+     「wash + 同系の文字色 + 枠線」に揃える。 */
+  background: var(--muted-wash);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
 }
 
 .import-badge.status-completed {
-  background: #d6f0d6;
+  background: var(--ok-wash);
+  color: var(--ok);
+  border-color: var(--ok);
 }
 
 .import-badge.status-failed {
-  background: #f5d3d3;
+  background: var(--danger-wash);
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .import-progress {
@@ -1068,7 +1128,9 @@ main {
 
 .import-badge.status-processing,
 .import-badge.status-pending {
-  background: #fdf0cf;
+  background: var(--warn-wash);
+  color: var(--warn);
+  border-color: var(--warn);
 }
 
 /* ---------- Responsive (desktop-first) ---------- */
@@ -1192,15 +1254,15 @@ main {
 }
 
 /* 脚ごとに色を変える。順に「入ってくる → 回る → 降りる」で寒色から暖色へ。 */
-.pattern-leg-entry { stroke: #6f7f95; }
-.pattern-leg-break { stroke: #f0a44a; }
-.pattern-leg-downwind { stroke: #4aa3ff; }
-.pattern-leg-base { stroke: #b98bff; }
+.pattern-leg-entry { stroke: var(--leg-entry); }
+.pattern-leg-break { stroke: var(--leg-break); }
+.pattern-leg-downwind { stroke: var(--leg-downwind); }
+.pattern-leg-base { stroke: var(--leg-base); }
 .pattern-leg-final { stroke: var(--accent); }
 .pattern-leg-rollout { stroke: var(--text-dim); stroke-dasharray: 4 4; }
 
 .pattern-start {
-  fill: #aef3cf;
+  fill: var(--text);
 }
 
 .pattern-scalebar {
@@ -1232,10 +1294,10 @@ main {
   border-top-color: currentColor;
 }
 
-.pattern-legend-swatch.pattern-leg-entry { border-top-color: #6f7f95; }
-.pattern-legend-swatch.pattern-leg-break { border-top-color: #f0a44a; }
-.pattern-legend-swatch.pattern-leg-downwind { border-top-color: #4aa3ff; }
-.pattern-legend-swatch.pattern-leg-base { border-top-color: #b98bff; }
+.pattern-legend-swatch.pattern-leg-entry { border-top-color: var(--leg-entry); }
+.pattern-legend-swatch.pattern-leg-break { border-top-color: var(--leg-break); }
+.pattern-legend-swatch.pattern-leg-downwind { border-top-color: var(--leg-downwind); }
+.pattern-legend-swatch.pattern-leg-base { border-top-color: var(--leg-base); }
 .pattern-legend-swatch.pattern-leg-final { border-top-color: var(--accent); }
 .pattern-legend-swatch.pattern-leg-rollout { border-top-color: var(--text-dim); }
 
@@ -1246,13 +1308,13 @@ main {
 }
 
 .pattern-downwind-fit {
-  stroke: #4aa3ff;
+  stroke: var(--leg-downwind);
   stroke-width: 1.4;
   opacity: 0.9;
 }
 
 .pattern-downwind-label {
-  fill: #9ccdff;
+  fill: var(--leg-downwind);
   font-size: 11px;
 }
 
@@ -1279,7 +1341,7 @@ main {
   padding: 12px 14px;
   border: 1px dashed var(--warn);
   border-radius: 6px;
-  background: rgba(240, 164, 74, 0.05);
+  background: var(--warn-wash);
 }
 
 .import-results h4 {
