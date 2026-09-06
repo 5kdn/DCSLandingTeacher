@@ -282,18 +282,35 @@ def test_the_proximity_prefilter_does_not_change_the_answer() -> None:
     far = _reference_surfaces(samples, distant, config, deck_altitude_for, None)
     assert not any(is_deck for _, is_deck in far)
 
-    # And a ship just inside the radius is still found -- the window must not
-    # be tighter than carrier_proximity_m.
-    inside = carrier()
-    state = inside["C1"]
-    offset = (config.carrier_proximity_m * 0.9) / 111_320.0
-    state.samples = [
-        (t, lat + offset, lon, alt, hdg, spd)
-        for (t, lat, lon, alt, hdg, spd) in state.samples
-    ]
-    assert any(
-        is_deck
-        for _, is_deck in _reference_surfaces(
-            samples, inside, config, deck_altitude_for, None
+    # And a ship just inside the radius is still found, on EITHER axis -- the
+    # window must never be tighter than carrier_proximity_m.
+    #
+    # The east/west case is the one that catches a latitude-sized window used
+    # for both axes: a degree of longitude is 111 km * cos(lat), so at this
+    # fixture's 35 N a ship 720 m due east is 0.0079 deg away while a
+    # latitude-sized window is only 0.0072 deg wide, and the prefilter would
+    # silently discard a carrier the haversine would have accepted. The first
+    # version of this test only moved the ship NORTH, which is exactly the
+    # axis where that bug is invisible.
+    import math
+
+    for axis in ("north", "east"):
+        inside = carrier()
+        state = inside["C1"]
+        metres = config.carrier_proximity_m * 0.9
+        d_lat = metres / 111_320.0 if axis == "north" else 0.0
+        d_lon = (
+            0.0
+            if axis == "north"
+            else metres / (111_320.0 * math.cos(math.radians(LAT0)))
         )
-    )
+        state.samples = [
+            (t, lat + d_lat, lon + d_lon, alt, hdg, spd)
+            for (t, lat, lon, alt, hdg, spd) in state.samples
+        ]
+        assert any(
+            is_deck
+            for _, is_deck in _reference_surfaces(
+                samples, inside, config, deck_altitude_for, None
+            )
+        ), f"a ship {metres:.0f} m {axis} of the track is inside the radius"

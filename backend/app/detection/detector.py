@@ -34,6 +34,8 @@ post-touchdown tail for context.
 
 from __future__ import annotations
 
+import math
+
 from bisect import bisect_right
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -314,27 +316,40 @@ def _reference_surfaces(
     if not known:
         return [(ground_altitude_m, False)] * len(samples)
 
-    # Latitude window that bounds the proximity test. A degree of latitude is
-    # ~111 km everywhere, and a degree of longitude is never longer, so a
-    # sample outside this box in EITHER axis is certainly outside the radius.
-    # This is a cheap conservative pre-filter, not a different test: the
-    # haversine still decides. Without it every sample paid a haversine per
-    # ship, on every detection pass, for the whole rolling buffer -- and a
-    # land recording near a carrier group pays that for nothing.
-    window_deg = config.carrier_proximity_m / 111_000.0 + 1e-6
+    # Cheap box that bounds the proximity test, so the haversine only runs on
+    # candidates that could possibly be inside it. Without this every sample
+    # paid a haversine per ship, on every detection pass, over the whole
+    # rolling buffer -- a land recording that merely shares a mission with a
+    # carrier group paid it for nothing.
+    #
+    # The two axes need DIFFERENT windows, and getting this backwards makes
+    # the filter reject ships that are genuinely in range. A degree of
+    # latitude is ~111 km everywhere; a degree of longitude is that times
+    # cos(latitude), i.e. SHORTER -- so a given distance spans MORE degrees of
+    # longitude, and the longitude window must be the wider one. At this
+    # server's operating area (~42 N) 800 m is 0.0072 deg of latitude but
+    # 0.0097 deg of longitude: a single latitude-sized window would have
+    # discarded any ship more than ~600 m due east or west while still inside
+    # the 800 m radius.
+    window_lat_deg = config.carrier_proximity_m / 111_000.0 + 1e-6
 
     surfaces: list[tuple[float | None, bool]] = []
     for sample in samples:
         best: float | None = None
         best_distance = config.carrier_proximity_m
         if sample.latitude is not None and sample.longitude is not None:
+            # cos is clamped so a track over a pole widens the window to
+            # everything rather than dividing by ~0 and rejecting every ship.
+            window_lon_deg = window_lat_deg / max(
+                math.cos(math.radians(sample.latitude)), 1e-6
+            )
             for _obj_id, carrier, deck in known:
                 pos = carrier.position_at(sample.time)
                 if pos is None:
                     continue
                 if (
-                    abs(pos[0] - sample.latitude) > window_deg
-                    or abs(pos[1] - sample.longitude) > window_deg
+                    abs(pos[0] - sample.latitude) > window_lat_deg
+                    or abs(pos[1] - sample.longitude) > window_lon_deg
                 ):
                     continue
                 distance = haversine_m(
