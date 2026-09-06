@@ -48,25 +48,37 @@ def test_the_packaged_copy_is_used_when_the_mount_is_empty(tmp_path, caplog) -> 
     empty_mount.mkdir()
 
     staged = Path(packaged.__file__).parent / "defaults"
-    created = not staged.exists()
+    created_dir = not staged.exists()
     staged.mkdir(parents=True, exist_ok=True)
     shipped = staged / "grading.yaml"
+    # Only remove what THIS test created. Deleting unconditionally would wipe
+    # a real packaged copy (an installed wheel, a container) and quietly
+    # disarm test_no_packaged_copy_in_a_source_checkout, which runs after it.
+    created_file = not shipped.exists()
     try:
-        if not shipped.exists():
+        if created_file:
             shutil.copyfile(REPO_ROOT / "config" / "grading.yaml", shipped)
         with caplog.at_level(logging.WARNING, logger="app.grading.packaged"):
             resolved = resolve_config_path(empty_mount / "grading.yaml", "grading.yaml")
         assert resolved is not None and resolved.is_file()
+        assert resolved == shipped, "must resolve to the packaged copy, not elsewhere"
 
-        # And the point of all of it: the LSO factor table is present, so a
-        # carrier landing can be graded on something other than "OK".
+        # The content has to come from the FILE, not from the code defaults.
+        # Asserting something the defaults also satisfy (the LSO factor table
+        # is in both since the parity fix) would pass over an empty or
+        # truncated packaged copy, which is exactly the failure this guards.
         config = load_grading_config(resolved)
-        assert config.lso_grading["factors"], "the packaged copy must carry the factors"
+        import yaml
+
+        with open(REPO_ROOT / "config" / "grading.yaml", encoding="utf-8") as stream:
+            canonical = yaml.safe_load(stream)
+        assert config.raw["land_grading"]["letters"] == canonical["land_grading"]["letters"]
+        assert config.lso_grading["factors"].keys() == canonical["lso_grading"]["factors"].keys()
         assert config.lso_grading["decision"]["cut_low_gs_deviation_m"] == -4.5
     finally:
-        if shipped.exists():
+        if created_file and shipped.exists():
             shipped.unlink()
-        if created and staged.exists():
+        if created_dir and staged.exists() and not any(staged.iterdir()):
             staged.rmdir()
 
 

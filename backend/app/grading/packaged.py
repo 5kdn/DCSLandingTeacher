@@ -6,8 +6,12 @@ shadows the ``grading.yaml`` baked into the image. ``load_grading_config()``
 then hits its "file missing -> built-in defaults" branch and returns silently,
 so the server ran for weeks on the code defaults while the repository's
 carefully commented YAML was inert. Nothing in the logs said so. The visible
-symptom was that every carrier landing graded "OK": the LSO factor table
-exists only in the YAML, so with the YAML gone no factor could fire.
+symptom was that every carrier landing graded "OK", because the LSO factor
+table was then missing from the code defaults and existed only in the YAML.
+That particular hole is closed from the other side too -- the defaults now
+carry the same thresholds, and a test pins them equal -- but the class of
+failure is not: any value that lives only in the YAML is absent from a
+server whose configured path is empty, and it is absent silently.
 
 Two independent guards, because they fail differently:
 
@@ -75,7 +79,11 @@ def resolve_config_path(configured: str | Path | None, filename: str) -> Path | 
             target,
             f"using the copy shipped inside the package ({fallback})"
             if fallback is not None
-            else "falling back to the built-in defaults in code",
+            # Not necessarily the code defaults: returning None lets the
+            # loader try its own CWD-relative default path first, and only
+            # then fall back to what is compiled in.
+            else "falling back to the loader's default path, then to the "
+            "built-in defaults in code",
         )
         return fallback
     return packaged_config(filename)
