@@ -408,6 +408,13 @@ class LandingPipeline:
                 landing.approach_pattern = (
                     result.metrics.get("approach_pattern") or landing.approach_pattern
                 )
+            # 機体名を持っていない古い行は、ここで焼き付けて自己修復させる。
+            # 0008 の backfill は「そのとき approach_track に機体名があった行」
+            # しか埋められず、後から採点し直して初めて機体名が入った行が
+            # 取り残される (実測 2 件)。再採点は analysis.airframe を既に
+            # 持っているので、書くのが自然な場所はここ。
+            if not landing.airframe and analysis.airframe:
+                landing.airframe = analysis.airframe
             landing.grading_version = GRADING_VERSION
             landing.graded_at = _utcnow()
             await session.commit()

@@ -357,3 +357,32 @@ async def test_the_object_row_still_answers_for_rows_written_before_the_column(
     body = (await http.get(f"/api/landings/{landing_id}")).json()
     assert body["airframe"] == "F-16C_50"
     assert body["pilot"] == "Wags"
+
+
+async def test_regrade_burns_in_a_missing_airframe(client) -> None:
+    """Rows the 0008 backfill could not reach must heal on the next regrade.
+
+    The migration could only fill rows whose ``approach_track`` already
+    carried an airframe. A row that got its track populated later — by a
+    re-grade that resolved the name from the object row — stayed NULL, so it
+    kept depending on the mutable row this column exists to stop trusting.
+    Two production rows were in exactly that state.
+    """
+    from app.models.entities import Landing
+
+    http, app = client
+    sf = app.state.session_factory
+    landing_id = await seed_landing(
+        sf, pipeline=app.state.pipeline, kind="land", pilot="Grim", airframe="A-10C_2"
+    )
+
+    async with sf() as session:
+        landing = await session.get(Landing, landing_id)
+        landing.airframe = None
+        await session.commit()
+
+    assert (await http.post(f"/api/landings/{landing_id}/regrade")).status_code == 200
+
+    async with sf() as session:
+        landing = await session.get(Landing, landing_id)
+        assert landing.airframe == "A-10C_2"
