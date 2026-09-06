@@ -24,14 +24,22 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("landings", sa.Column("pilot", sa.String(128), nullable=True))
-    op.add_column("landings", sa.Column("airframe", sa.String(128), nullable=True))
+    # SQLite runs DDL non-transactionally under alembic, so the two ADD
+    # COLUMNs commit independently of the backfill below and of the version
+    # stamp. If anything fails in between, the columns exist but the revision
+    # does not, and a re-run would die on "duplicate column name". Adding only
+    # what is missing makes the migration safe to repeat from that state.
+    bind = op.get_bind()
+    existing = {row[1] for row in bind.execute(sa.text("PRAGMA table_info(landings)"))}
+    if "pilot" not in existing:
+        op.add_column("landings", sa.Column("pilot", sa.String(128), nullable=True))
+    if "airframe" not in existing:
+        op.add_column("landings", sa.Column("airframe", sa.String(128), nullable=True))
 
     # Backfill from the approach track, which recorded the airframe at
     # detection time. json_extract is SQLite-specific; this project ships on
     # SQLite only (see docs/architecture.md), and the guard keeps the
     # migration from failing anywhere else rather than pretending to work.
-    bind = op.get_bind()
     if bind.dialect.name == "sqlite":
         bind.execute(
             sa.text(

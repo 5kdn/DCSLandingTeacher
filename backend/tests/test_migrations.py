@@ -169,3 +169,100 @@ async def test_downgrade_to_baseline_drops_added_columns(tmp_path: Path) -> None
     # The import_jobs table added by 0006 is gone after full downgrade.
     assert "import_jobs" not in _table_names(url)
     assert _version(url) == BASELINE_REVISION
+
+
+async def test_0008_backfills_the_airframe_from_the_approach_track(
+    tmp_path: Path,
+) -> None:
+    """The backfill is the whole point of 0008, and nothing exercised it.
+
+    A landing's aircraft used to be read from the mutable ``objects`` row,
+    which Tacview lets a later object overwrite; 124 production landings
+    displayed an airframe disagreeing with the one in their own
+    ``approach_track``. The migration repairs them from that track, so the
+    repair itself has to be pinned -- including the rows it must NOT invent
+    a value for.
+    """
+    import json
+
+    url = f"sqlite:///{(tmp_path / 'backfill.db').as_posix()}"
+    await run_migrations(url)
+
+    engine = _engine(url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM landings"))
+            conn.execute(
+                text(
+                    "INSERT INTO flights (id, source_id, started_at, created_at) "
+                    "VALUES (1, 'default', '2024-01-01', '2024-01-01')"
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO objects (id, flight_id, acmi_id, type, name, "
+                    "first_seen, last_seen, removed) VALUES "
+                    "(1, 1, '1001', 'Air+Rotorcraft', 'AIM_120', 0.0, 1.0, 0)"
+                )
+            )
+            for landing_id, track in (
+                (1, json.dumps({"airframe": "UH-1H", "samples": []})),
+                (2, json.dumps({"samples": []})),  # no airframe recorded
+                (3, None),                          # no track at all
+            ):
+                conn.execute(
+                    text(
+                        "INSERT INTO landings (id, flight_id, object_id, source_id, "
+                        "kind, outcome, touchdown_time, approach_track, created_at) "
+                        "VALUES (:i, 1, 1, 'default', 'land', 'full_stop', 0.0, :t, "
+                        "'2024-01-01')"
+                    ),
+                    {"i": landing_id, "t": track},
+                )
+            # Roll back to before 0008 and forward again, so the backfill runs
+            # over these rows.
+            conn.execute(
+                text("UPDATE alembic_version SET version_num = '0007_import_jobs'")
+            )
+            conn.execute(text("ALTER TABLE landings DROP COLUMN pilot"))
+            conn.execute(text("ALTER TABLE landings DROP COLUMN airframe"))
+    finally:
+        engine.dispose()
+
+    await run_migrations(url)
+
+    engine = _engine(url)
+    try:
+        with engine.connect() as conn:
+            rows = dict(
+                conn.execute(text("SELECT id, airframe FROM landings")).all()
+            )
+    finally:
+        engine.dispose()
+
+    assert rows[1] == "UH-1H", "a recorded airframe must be restored"
+    assert rows[2] is None, "no airframe in the track -> nothing to invent"
+    assert rows[3] is None, "no track -> nothing to invent"
+    assert {"pilot", "airframe"} <= _columns(url, "landings")
+
+
+async def test_0008_survives_columns_that_already_exist(tmp_path: Path) -> None:
+    """SQLite commits the ADD COLUMNs independently of the version stamp, so
+    an interrupted run leaves the columns behind. Re-running must not die on
+    "duplicate column name"."""
+    url = f"sqlite:///{(tmp_path / 'partial.db').as_posix()}"
+    await run_migrations(url)
+
+    engine = _engine(url)
+    try:
+        with engine.begin() as conn:
+            # The half-applied state: columns present, version rolled back.
+            conn.execute(
+                text("UPDATE alembic_version SET version_num = '0007_import_jobs'")
+            )
+    finally:
+        engine.dispose()
+
+    await run_migrations(url)
+    assert _version(url) == HEAD_REVISION
+    assert {"pilot", "airframe"} <= _columns(url, "landings")

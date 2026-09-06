@@ -106,6 +106,28 @@ LandingListener = Callable[[LandingContext], Awaitable[int | None]]
 LandingFinalizeListener = Callable[[int, LandingContext], Awaitable[None]]
 
 
+#: ``_object_meta`` tuple layout: (type, name, pilot, group, country).
+_META_FIELDS = {"type": 0, "name": 1, "pilot": 2, "group": 3, "country": 4}
+
+
+def _identity(
+    source: Any | None, meta: tuple[str | None, ...] | None, field: str
+) -> str | None:
+    """One identity field, from the live parser object or the last known one.
+
+    ``source`` is ``None`` on the removal-driven detection pass, because the
+    parser pops the object before emitting the remove event -- and that is
+    exactly when the ACMI id becomes free for another object to claim, so it
+    is the worst moment to fall back to the (now reusable) database row.
+    """
+    if source is not None:
+        return getattr(source, field, None)
+    if meta is None:
+        return None
+    index = _META_FIELDS[field]
+    return meta[index] if index < len(meta) else None
+
+
 class TrackIngestor:
     """Consumes raw ACMI lines, parses them, and stores tracks in the DB."""
 
@@ -613,6 +635,36 @@ class TrackIngestor:
                     ),
                 )
 
+    def _gate_deck_altitude(self, sample: TrackSample) -> float | None:
+        """Deck altitude (MSL) under ``sample``, or ``None`` if not over a ship.
+
+        Only used by the detection gate, which needs an O(1)-ish answer for a
+        single sample rather than the whole-buffer sweep
+        :func:`app.detection.detector._reference_surfaces` does. Returns
+        ``None`` whenever the deck height is unknown, so the gate falls back
+        to the terrain-referenced test it has always used.
+        """
+        if self._deck_altitude_for is None or not self._carrier_states:
+            return None
+        if sample.latitude is None or sample.longitude is None:
+            return None
+        best: float | None = None
+        best_distance = self._detection_config.carrier_proximity_m
+        for carrier in self._carrier_states.values():
+            deck = self._deck_altitude_for(carrier)
+            if deck is None:
+                continue
+            position = carrier.position_at(sample.time)
+            if position is None:
+                continue
+            distance = haversine_m(
+                sample.latitude, sample.longitude, position[0], position[1]
+            )
+            if distance <= best_distance:
+                best = (carrier.altitude_at(sample.time) or 0.0) + deck
+                best_distance = distance
+        return best
+
     #: Minimum baseline (s) for the two-point ground-speed estimate below.
     #: ACMI partial updates that omit T=lon|lat frequently repeat the last
     #: known position verbatim (spec-correct "unchanged" semantics), so the
@@ -726,13 +778,32 @@ class TrackIngestor:
         # when forced. The ground reference is only needed when the sample
         # itself cannot answer the WOW question, so skip the haversine walk
         # otherwise.
-        if last.on_ground is None and last.agl is None:
+        #
+        # The gate has to ask the SAME question the full pass will ask, or it
+        # answers for a surface the analysis does not use. Over a carrier that
+        # surface is the deck, and Tacview's AGL is measured to the sea: an
+        # aircraft on a 19.5 m deck reports 19.5 m AGL, the gate says "not on
+        # deck", and the deck-aware pass behind it never runs. Deck-
+        # referencing every sample and then never reaching the code that uses
+        # it is how this shipped inert.
+        deck = self._gate_deck_altitude(last)
+        if deck is not None:
+            gate_ground_altitude = deck
+            trust_sample_agl = False
+        elif last.on_ground is None and last.agl is None:
             gate_ground_altitude = self._ground_altitude_for(
                 last.latitude, last.longitude
             )
+            trust_sample_agl = True
         else:
             gate_ground_altitude = None
-        wow_now = is_on_deck(last, gate_ground_altitude, self._detection_config)
+            trust_sample_agl = True
+        wow_now = is_on_deck(
+            last,
+            gate_ground_altitude,
+            self._detection_config,
+            trust_sample_agl=trust_sample_agl,
+        )
         wow_before = self._last_wow.get(obj_id)
         self._last_wow[obj_id] = wow_now
         new_contact = wow_before is not True and wow_now is True
@@ -785,8 +856,15 @@ class TrackIngestor:
             context = LandingContext(
                 flight_id=self._flight_id,
                 acmi_object_id=obj_id,
-                pilot=source.pilot if source else None,
-                airframe=source.name if source else None,
+                # 除去起因の検出 (force_final) では、パーサは既にオブジェクトを
+                # 落としているので source が None になる。そこで素通しすると
+                # pilot / airframe が NULL のまま着陸行に焼き付き、機体名を
+                # 行に持たせた意味が消える --- しかも「ID が解放された直後」は
+                # まさに別オブジェクトへの使い回しが起きる場面で、objects 行が
+                # 当てにならない可能性が最も高い。直前まで保持していた identity
+                # (_object_meta) を控えとして使う。
+                pilot=_identity(source, self._object_meta.get(obj_id), "pilot"),
+                airframe=_identity(source, self._object_meta.get(obj_id), "name"),
                 event=landing,
                 object_row_id=self._object_row_ids.get(obj_id),
                 carrier_row_id=(

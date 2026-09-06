@@ -6,7 +6,8 @@ production database 2026-09-05:
 - ``on_ground`` is absent from every one of 87,780,044 track rows, so the
   weight-on-wheels test always falls through to the AGL comparison;
 - Tacview's ``AGL`` is height above the TERRAIN, which over water is the sea
-  surface -- an aircraft parked on a Nimitz deck reports ~22 m;
+  surface -- an aircraft measured on the CVN_73 deck in production
+  reported agl 21.99 at 22.00 m MSL;
 - ``wow_agl_threshold_m`` is 3 m.
 
 So an aircraft that traps never registered as on-deck, and the five
@@ -34,7 +35,7 @@ from app.detection.detector import (
 )
 
 LAT0, LON0 = 35.0, 140.0
-DECK_ALTITUDE_M = 22.0  # Nimitz, per config/carriers.yaml
+DECK_ALTITUDE_M = 19.5  # Nimitz-class, per config/carriers.yaml (`stennis`)
 M_PER_DEG_LAT = 111_320.0
 
 
@@ -93,8 +94,8 @@ def deck_altitude_for(_carrier) -> float:
 def test_a_trap_is_invisible_without_a_deck_reference() -> None:
     """The bug, pinned so it cannot come back.
 
-    With no deck resolver the aircraft is judged against the sea, sits 22 m
-    "up" for the whole recording, and no landing is reported.
+    With no deck resolver the aircraft is judged against the sea, sits a
+    deck height "up" for the whole recording, and no landing is reported.
     """
     events = analyze_track(
         approach(final_altitude_m=DECK_ALTITUDE_M),
@@ -128,7 +129,8 @@ def test_a_trap_on_the_deck_is_detected() -> None:
 def test_hitting_the_water_beside_the_ship_is_not_a_trap() -> None:
     """The only thing the old detector ever caught must now be rejected.
 
-    An object that descends to sea level 20 m below the deck is not landing
+    An object that descends to sea level, a deck height below the deck,
+    is not landing
     on it; a one-sided "at or below deck height" test would still call this
     an arrestment, so the band has a floor.
     """
@@ -166,3 +168,87 @@ def test_land_detection_is_untouched_by_the_deck_path() -> None:
     assert len(events) == 1
     assert events[0].kind == "land"
     assert events[0].touchdown.surface_is_deck is False
+
+
+def test_the_geometry_book_resolves_the_hull_names_dcs_actually_emits() -> None:
+    """A deck height the book cannot look up is a fix that does nothing.
+
+    The deck-referencing above is only reachable when
+    ``CarrierGeometryBook.resolve`` returns geometry for the ship on the
+    wire. It did not: measured in production 2026-09-06, the shipped
+    ``carriers.yaml`` matched none of the six hulls in the running mission,
+    including CVN_73 -- which is 100% of this server's carrier activity --
+    because the patterns said "cvn-74" (hyphen) while DCS writes "CVN_73"
+    (underscore), and the type patterns ("AircraftCarrier+Stennis" and the
+    like) are not substrings of the "Sea+Watercraft+AircraftCarrier" that
+    DCS actually emits. Every test passed over an inert change.
+
+    So this test asserts against the identities observed in the ACMI stream,
+    not against the patterns the file happens to contain.
+    """
+    from pathlib import Path
+
+    from app.grading.carriers import load_carrier_geometry_book
+
+    book = load_carrier_geometry_book(
+        Path(__file__).resolve().parents[2] / "config" / "carriers.yaml"
+    )
+    dcs_type = "Sea+Watercraft+AircraftCarrier"
+    for name in ("CVN_73", "CV_1143_5"):
+        geometry = book.resolve(name, dcs_type)
+        assert geometry is not None, f"{name} does not resolve; deck referencing is inert"
+        assert geometry.deck_altitude_m > 0
+
+    # ...and a hull with no entry must still resolve to nothing rather than
+    # inheriting someone else's deck. A broad type pattern would break this,
+    # because resolve() tries every entry's type patterns before any name.
+    assert book.resolve("LHA_Tarawa", dcs_type) is None
+    assert book.resolve("USS_Arleigh_Burke_IIa", "Sea+Watercraft+Warship") is None
+
+
+async def test_the_ingest_gate_lets_a_deck_touchdown_through(session_factory) -> None:
+    """The gate has to ask the same question the analysis does.
+
+    ``_maybe_detect_landing`` short-circuits before ``analyze_track`` unless
+    the newest sample looks like a fresh ground contact. That cheap check was
+    still judging weight-on-wheels against Tacview's sea-referenced AGL, so
+    an aircraft settling on a deck never looked like a contact and the
+    deck-aware pass behind it never ran. Every test in this module passed
+    anyway, because they all call ``analyze_track`` directly -- so this one
+    drives the real ingest path, line by line, exactly as the TCP stream does.
+    """
+    from app.ingest import LandingContext, TrackIngestor
+
+    seen: list[LandingContext] = []
+
+    async def listener(context: LandingContext) -> int | None:
+        seen.append(context)
+        return len(seen)
+
+    ingestor = TrackIngestor(
+        session_factory,
+        landing_listener=listener,
+        deck_altitude_for=lambda _c: DECK_ALTITUDE_M,
+    )
+
+    lines = ["FileType=text/acmi/tacview", "FileVersion=2.2", "0,ReferenceTime=2024-01-01T00:00:00Z"]
+    lines.append("#0")
+    lines.append(f"C1,T={LON0}|{LAT0}|0.0|||0.0,Type=Sea+Watercraft+AircraftCarrier,Name=CVN_73")
+    for sample in approach(final_altitude_m=DECK_ALTITUDE_M):
+        lines.append(f"#{sample.time - approach(final_altitude_m=0.0)[0].time:.2f}")
+        lines.append(
+            f"A1,T={sample.longitude}|{sample.latitude}|{sample.altitude}"
+            f"||||||{sample.speed:.1f}|,"
+            f"Type=Air+FixedWing,Name=FA-18C_hornet,Pilot=Trap,AGL={sample.agl}"
+        )
+    for line in lines:
+        await ingestor.handle_line(line)
+    await ingestor.close()
+
+    assert seen, "the gate swallowed the touchdown before analyze_track ever ran"
+    assert seen[-1].event.kind == "carrier"
+    assert seen[-1].event.touchdown.surface_is_deck is True
+    # Identity must be burned in even on this path (it is what landings.pilot
+    # and landings.airframe are for).
+    assert seen[-1].airframe == "FA-18C_hornet"
+    assert seen[-1].pilot == "Trap"

@@ -146,8 +146,8 @@ def _summary(
 #: list actually displays.
 _SORT_COLUMNS: dict[str, Any] = {
     "time": Landing.created_at,
-    "pilot": func.coalesce(Landing.pilot, DcsObject.pilot),
-    "airframe": func.coalesce(Landing.airframe, DcsObject.name),
+    "pilot": func.coalesce(func.nullif(Landing.pilot, ""), DcsObject.pilot),
+    "airframe": func.coalesce(func.nullif(Landing.airframe, ""), DcsObject.name),
     "venue": Landing.venue_name,
     "source": Landing.source_id,
     "kind": Landing.kind,
@@ -195,9 +195,9 @@ async def list_landings(
     )
 
     if player:
-        query = query.where(func.coalesce(Landing.pilot, DcsObject.pilot).ilike(f"%{player}%"))
+        query = query.where(func.coalesce(func.nullif(Landing.pilot, ""), DcsObject.pilot).ilike(f"%{player}%"))
     if airframe:
-        query = query.where(func.coalesce(Landing.airframe, DcsObject.name).ilike(f"%{airframe}%"))
+        query = query.where(func.coalesce(func.nullif(Landing.airframe, ""), DcsObject.name).ilike(f"%{airframe}%"))
     if venue:
         query = query.where(Landing.venue_name.ilike(f"%{venue}%"))
     if kind:

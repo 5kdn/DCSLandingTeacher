@@ -50,7 +50,9 @@ defaults:
 
 carriers:
   kuznetsov:
-    name_patterns: ["kuznetsov"]
+    # "CV_1143_5" is the unit name DCS actually puts in the ACMI; without it
+    # nothing here matched the ship on the wire (see the note above `stennis`).
+    name_patterns: ["kuznetsov", "cv_1143_5", "1143_5"]
     type_patterns: ["Carrier+FixedWing", "AircraftCarrier+Kuznetsov"]
     # Admiral Kuznetsov (Project 1143.5): STOBAR with ski-jump.
     # Landing run is nearly axial (minimal angled deck offset).
@@ -66,7 +68,28 @@ carriers:
     beam_width_m: 10.0               # Narrower beam (older optics)
 
   stennis:
-    name_patterns: ["stennis", "cvn-74", "nimitz"]
+    # ---------------------------------------------------------------------
+    # 実測で分かったこと (2026-09-06): この一覧は DCS が実際に ACMI へ書く
+    # 名前と 1 つも一致していなかった。本番の艦は Name="CVN_73" /
+    # Type="Sea+Watercraft+AircraftCarrier" で、
+    #   - name_patterns の "cvn-74" はハイフンで、DCS はアンダースコア
+    #   - type_patterns の "AircraftCarrier+Stennis" 等は
+    #     "Sea+Watercraft+AircraftCarrier" の部分文字列ではない
+    # ため resolve() が None を返し、甲板高が引けず、空母の接地判定は
+    # 丸ごと無効化されていた (この鯖の空母活動は 100% が CVN_73)。
+    #
+    # type_patterns に "AircraftCarrier" のような広いものを足してはいけない:
+    # resolve() は **全エントリの type_patterns を先に** 走査するので、
+    # 1 つ広げると全艦がそのエントリの甲板高を持つことになる (carriers.py の
+    # resolve を参照)。艦ごとの Name で当てる。
+    #
+    # CVN_73 は George Washington で、ここに書いてあるのは Stennis (CVN-74)
+    # だが、どちらもニミッツ級で甲板高・アングルドデッキ幾何は同一に扱える。
+    # 級として当てているのであって、艦名の間違いではない。
+    # ---------------------------------------------------------------------
+    name_patterns:
+      ["stennis", "nimitz", "cvn-74", "cvn_74", "cvn-73", "cvn_73",
+       "cvn-71", "cvn_71", "cvn-72", "cvn_72", "cvn-75", "cvn_75"]
     type_patterns: ["Carrier+Hornet", "AircraftCarrier+Stennis", "Carrier+Nimitz"]
     # USS John C. Stennis (CVN-74), Nimitz-class.
     # Angled deck: 9° offset from ship heading (BRC).

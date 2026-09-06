@@ -312,9 +312,20 @@ class LandingPipeline:
         }
 
     async def _airframe_of(self, landing: Landing) -> str | None:
-        """ACMI name of the aircraft that flew this landing, or ``None``."""
+        """ACMI name of the aircraft that flew this landing, or ``None``.
+
+        The landing's own column first. Falling straight through to the
+        ``objects`` row -- which is what this did -- launders the very value
+        the row is not allowed to be trusted for: Tacview reuses object ids,
+        so that row may by now describe a missile. Worse, ``regrade`` writes
+        the result back into ``approach_track``, so one re-grade turns the
+        mislabelled name into the "detected" one and the evidence of the
+        mix-up is gone.
+        """
         from sqlalchemy import select
 
+        if landing.airframe:
+            return landing.airframe
         if landing.object_id is None:
             return None
         async with self._session_factory() as session:
