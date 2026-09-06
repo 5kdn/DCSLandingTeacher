@@ -121,8 +121,11 @@ def _summary(
         outcome=landing.outcome,
         outcome_status=landing.outcome_status or "final",
         venue_name=landing.venue_name,
-        pilot=dcs_object.pilot if dcs_object else None,
-        airframe=dcs_object.name if dcs_object else None,
+        # 着陸行に焼き付けた値が正。objects 行は ACMI ID の再利用で後から
+        # 別オブジェクトに上書きされるため、そちらは古い行のための後方
+        # 互換フォールバックとしてだけ使う。
+        pilot=landing.pilot or (dcs_object.pilot if dcs_object else None),
+        airframe=landing.airframe or (dcs_object.name if dcs_object else None),
         touchdown_time=landing.touchdown_time,
         # Wall-clock epoch (Issue D-1): ReferenceTime + mission time.
         touchdown_epoch=_touchdown_epoch(reference_time, landing.touchdown_time),
@@ -143,8 +146,8 @@ def _summary(
 #: list actually displays.
 _SORT_COLUMNS: dict[str, Any] = {
     "time": Landing.created_at,
-    "pilot": DcsObject.pilot,
-    "airframe": DcsObject.name,
+    "pilot": func.coalesce(Landing.pilot, DcsObject.pilot),
+    "airframe": func.coalesce(Landing.airframe, DcsObject.name),
     "venue": Landing.venue_name,
     "source": Landing.source_id,
     "kind": Landing.kind,
@@ -192,9 +195,9 @@ async def list_landings(
     )
 
     if player:
-        query = query.where(DcsObject.pilot.ilike(f"%{player}%"))
+        query = query.where(func.coalesce(Landing.pilot, DcsObject.pilot).ilike(f"%{player}%"))
     if airframe:
-        query = query.where(DcsObject.name.ilike(f"%{airframe}%"))
+        query = query.where(func.coalesce(Landing.airframe, DcsObject.name).ilike(f"%{airframe}%"))
     if venue:
         query = query.where(Landing.venue_name.ilike(f"%{venue}%"))
     if kind:

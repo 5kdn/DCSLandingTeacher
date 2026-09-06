@@ -142,6 +142,23 @@ class Landing(Base):
     # Approach pattern classification: "overhead" | "straight_in" | "unknown"
     approach_pattern: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    # Who flew it and in what, captured AT DETECTION TIME.
+    #
+    # These used to be read from the ``objects`` row instead, which is wrong
+    # because that row is mutable and shared: Tacview reuses an object's hex
+    # id within a recording, and the ingest matches on (flight_id, acmi_id),
+    # so a later object -- a missile, another player's aircraft -- overwrites
+    # the name and pilot of the row an earlier landing points at. Measured on
+    # this server: 124 landings display an airframe that disagrees with the
+    # one recorded in their own ``approach_track``, including 7 UH-1H
+    # landings shown as "AIM_120".
+    #
+    # A landing's aircraft is a fact about the landing and does not change
+    # afterwards, so it is stored with the landing. Null on rows written
+    # before this column existed; readers fall back to the object row.
+    pilot: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    airframe: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
     grading_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     graded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

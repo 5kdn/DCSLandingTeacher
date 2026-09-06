@@ -470,6 +470,11 @@ class LandingPipeline:
                 metrics=dict(result.metrics),
                 approach_track=analysis.as_dict(),
                 approach_pattern=_row_approach_pattern(event, result),
+                # 誰が何で降りたかは着陸そのものの事実なので、着陸行に
+                # 焼き付ける。objects 行は ACMI ID が使い回されると別の
+                # オブジェクトに上書きされ、後からミサイル名に化ける。
+                pilot=context.pilot,
+                airframe=context.airframe,
                 grading_version=GRADING_VERSION,
                 graded_at=_utcnow(),
             )

@@ -283,3 +283,77 @@ async def _stored_track(session_factory, landing_id: int) -> dict:
     async with session_factory() as session:
         landing = await session.get(Landing, landing_id)
         return landing.approach_track
+
+
+async def test_a_landing_keeps_its_aircraft_when_the_object_row_is_reused(
+    client,
+) -> None:
+    """Tacview reuses object ids, so the ``objects`` row is not the landing's.
+
+    Within one recording DCS hands a freed hex id to the next object, and the
+    ingest matches objects on (flight_id, acmi_id) -- so a missile launched
+    later overwrites the name and pilot of the very row an earlier landing
+    points at. Measured on the production database: 124 landings displayed an
+    airframe that disagreed with the one recorded in their own approach
+    track, including seven UH-1H landings shown as "AIM_120".
+
+    The aircraft that flew a landing is a fact about that landing, so the
+    landing row owns it and the object row is only a fallback for rows
+    written before it did.
+    """
+    from sqlalchemy import select
+
+    from app.models.entities import DcsObject, Landing
+
+    http, app = client
+    sf = app.state.session_factory
+    landing_id = await seed_landing(
+        sf, pipeline=app.state.pipeline, kind="land", pilot="Bunyap", airframe="UH-1H"
+    )
+
+    # The id gets reused by an AIM-120 later in the same recording.
+    async with sf() as session:
+        landing = await session.get(Landing, landing_id)
+        obj = (
+            await session.execute(
+                select(DcsObject).where(DcsObject.id == landing.object_id)
+            )
+        ).scalar_one()
+        obj.name = "AIM_120"
+        obj.type = "Weapon+Missile"
+        obj.pilot = None
+        await session.commit()
+
+    body = (await http.get(f"/api/landings/{landing_id}")).json()
+    assert body["airframe"] == "UH-1H"
+    assert body["pilot"] == "Bunyap"
+
+    # ...and the list view, which sorts and filters on the same fields.
+    listing = (await http.get("/api/landings", params={"airframe": "UH-1H"})).json()
+    assert [item["id"] for item in listing["items"]] == [landing_id]
+    assert (await http.get("/api/landings", params={"airframe": "AIM"})).json()[
+        "total"
+    ] == 0
+
+
+async def test_the_object_row_still_answers_for_rows_written_before_the_column(
+    client,
+) -> None:
+    """Old landings have no stored identity; they must not go blank."""
+    from app.models.entities import Landing
+
+    http, app = client
+    sf = app.state.session_factory
+    landing_id = await seed_landing(
+        sf, pipeline=app.state.pipeline, kind="land", pilot="Wags", airframe="F-16C_50"
+    )
+
+    async with sf() as session:
+        landing = await session.get(Landing, landing_id)
+        landing.pilot = None
+        landing.airframe = None
+        await session.commit()
+
+    body = (await http.get(f"/api/landings/{landing_id}")).json()
+    assert body["airframe"] == "F-16C_50"
+    assert body["pilot"] == "Wags"

@@ -174,6 +174,37 @@ land_grading:
   # `default` row) reported "hard" for correctly flown F-16 landings.
   # Airframes are matched by substring against the ACMI name, in the order
   # listed under airframe_classes; anything unmatched uses `default`.
+  #
+  # Why piston warbirds are deliberately LEFT on `default`, despite being
+  # neither transports nor fighters. The `fighter` row exists because a
+  # fighter is FLOWN ONTO the runway and its sink at contact is a design
+  # figure. A warbird is the opposite: three-point and wheel landings are
+  # both flared to minimum sink, and arriving with sink is what produces
+  # the bounce. So the technique wants a band that rewards a soft touchdown
+  # -- which is what `default` already is.
+  #
+  # Measured here 2026-09-05 (39 land landings on La-7, TF-51D, Spitfire,
+  # Mosquito, Bf-109, P-47, Yak-52, Christen Eagle):
+  #   piston  median 240 fpm, p25 67, p75 394, touchdown speed median 87 kt
+  #   fighter median 270 fpm, p25 34, p75 537, touchdown speed median 155 kt
+  # The two medians are close, but the warbird flies its approach at little
+  # over half the speed, so on the same 3 deg path its geometric sink is
+  # ~460 fpm against the fighter's ~820. It arrives at 52% of its on-slope
+  # sink where the fighter arrives at 33% -- the warbird is flared less
+  # aggressively in absolute terms and still lands softer, and the p25 of
+  # 67 fpm shows how soft a well-flown one is. `default`'s 120/250 knees sit
+  # exactly where that technique is rewarded. 54% of these touchdowns are
+  # inside `default`'s good knee against 67% of fighter touchdowns inside
+  # `fighter`'s, i.e. the two populations are judged at broadly comparable
+  # rates and no new row is warranted.
+  #
+  # Jet trainers (MB-339 x4, L-39C x1) are the open case, not a settled one:
+  # median 307 fpm at a touchdown speed of 111 kt, sitting between the two
+  # populations, with none reaching `default`'s excellent knee. n=5 across
+  # two type families is not a calibration -- the same standard that left
+  # `overhead_glideslope_deg` null over 4 samples. A few dozen trainer
+  # landings with a verified airframe would settle it. Until then they stay
+  # on `default` and this paragraph is the reason.
   descent_rate_fpm:
     default:
       excellent: 120   # <= this -> 100 pts
