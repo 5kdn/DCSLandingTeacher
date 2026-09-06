@@ -45,7 +45,7 @@ export function formatMetric(key: string, value: unknown): { label: string; text
       const names = (value as string[]).map(factorLabel).join("・");
       return { label: metricLabel(key, stem), text: names || "なし" };
     }
-    const text =
+    const raw =
       value === null || value === undefined
         ? "-"
         : typeof value === "object"
@@ -53,6 +53,8 @@ export function formatMetric(key: string, value: unknown): { label: string; text
           // "[object Object]" になって根拠が読めなくなる。
           ? JSON.stringify(value)
           : String(value);
+    // 機械可読の列挙値だけ、読み手向けに日本語へ置き換える。
+    const text = METRIC_VALUE_JA[`${key}:${raw}`] ?? raw;
     // Strip the unit suffix here too: a metric that came back null still
     // has a Japanese label, and looking up only the full key printed the
     // raw "mean_path_angle_deg" next to a "-".
@@ -220,6 +222,18 @@ const FACTOR_DESCRIPTIONS: Record<string, string> = {
   pattern: "オーバーヘッドパターン（旋回明けの軸ずれ / ダウンウィンドの方位・高度）",
 };
 
+/** 列挙値の日本語。キーは `<metric key>:<raw value>`。
+ *
+ *  値そのもの (evidence / metrics の JSON) は英語のまま返している --- 既存
+ *  データと API 利用者がその文字列で分岐しているため。ここは表示層だけ。 */
+const METRIC_VALUE_JA: Record<string, string> = {
+  "geometry_confidence:fallback":
+    "艦の幾何が未登録（接地点基準の近似で採点。ランプ基準ではない）",
+  "geometry_confidence:unvalidated":
+    "艦は登録済みだが未検証（甲板高・ランプ位置は推定値）",
+  "geometry_confidence:validated": "実測データで検証済み",
+};
+
 /** 評価メトリクスの日本語ラベル。無いキーは従来どおりキー名を出す。 */
 const METRIC_LABELS: Record<string, string> = {
   touchdown_descent_rate: "接地降下率",
@@ -254,6 +268,7 @@ const METRIC_LABELS: Record<string, string> = {
   overshoot: "センターライン突き抜け",
   centerline_overshoot: "センターライン突き抜け",
   glideslope_reference: "基準",
+  geometry_confidence: "着艦幾何の確からしさ",
   glideslope_method: "測定方法",
   outcome: "結果",
   approach_pattern: "進入パターン",

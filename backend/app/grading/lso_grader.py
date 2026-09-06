@@ -369,5 +369,27 @@ def grade_carrier_approach(
             if analysis.geometry is not None
             else fallback_geometry_payload()
         ),
+        # How much this grade can be leaned on. Every deviation an LSO factor
+        # measures is relative to the ramp, so the grade is only as good as
+        # the geometry it was measured against -- and BOTH of the ways that
+        # can be shaky are invisible in the grade itself:
+        #
+        #   "fallback"    the ship was not in carriers.yaml, so distances are
+        #                 referenced to wherever the aircraft touched down
+        #                 rather than to a ramp. Every stored carrier row here
+        #                 is in this state.
+        #   "unvalidated" the ship WAS found, but its entry carries
+        #                 validated:false -- the deck height and ramp offsets
+        #                 are community estimates nobody has checked against
+        #                 real trap data. Every entry in the shipped file is.
+        #
+        # Reported, never scored: there is no validated carrier data on this
+        # deployment to calibrate a correction from, so the honest move is to
+        # say which frame produced the number.
+        "geometry_confidence": (
+            "fallback"
+            if analysis.geometry is None
+            else ("validated" if analysis.geometry.get("validated") else "unvalidated")
+        ),
     }
     return LsoGradeResult(grade=grade, factors=factors, comment=comment, metrics=metrics)

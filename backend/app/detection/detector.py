@@ -305,20 +305,37 @@ def _reference_surfaces(
         return [(ground_altitude_m, False)] * len(samples)
 
     #: Cache per carrier so the book is consulted once, not per sample.
-    decks: dict[str, float | None] = {
-        obj_id: deck_altitude_for(state) for obj_id, state in carriers.items()
-    }
+    #: Ships the book does not know drop out here rather than per sample.
+    known = [
+        (obj_id, state, deck)
+        for obj_id, state in carriers.items()
+        if (deck := deck_altitude_for(state)) is not None
+    ]
+    if not known:
+        return [(ground_altitude_m, False)] * len(samples)
+
+    # Latitude window that bounds the proximity test. A degree of latitude is
+    # ~111 km everywhere, and a degree of longitude is never longer, so a
+    # sample outside this box in EITHER axis is certainly outside the radius.
+    # This is a cheap conservative pre-filter, not a different test: the
+    # haversine still decides. Without it every sample paid a haversine per
+    # ship, on every detection pass, for the whole rolling buffer -- and a
+    # land recording near a carrier group pays that for nothing.
+    window_deg = config.carrier_proximity_m / 111_000.0 + 1e-6
+
     surfaces: list[tuple[float | None, bool]] = []
     for sample in samples:
         best: float | None = None
         best_distance = config.carrier_proximity_m
         if sample.latitude is not None and sample.longitude is not None:
-            for obj_id, carrier in carriers.items():
-                deck = decks.get(obj_id)
-                if deck is None:
-                    continue
+            for _obj_id, carrier, deck in known:
                 pos = carrier.position_at(sample.time)
                 if pos is None:
+                    continue
+                if (
+                    abs(pos[0] - sample.latitude) > window_deg
+                    or abs(pos[1] - sample.longitude) > window_deg
+                ):
                     continue
                 distance = haversine_m(
                     sample.latitude, sample.longitude, pos[0], pos[1]

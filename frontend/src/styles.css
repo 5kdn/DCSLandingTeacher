@@ -370,10 +370,22 @@ main {
   color: var(--text-dim);
 }
 
+/* The data sheet is two columns only when both halves can actually hold
+   their content. The right half carries the factor table, whose floor is
+   620 px, so two columns need roughly 620 + 620 + gap + padding before they
+   beat one column -- below that the reader gets a horizontal scrollbar on a
+   panel that would have fitted vertically. The old 900 px breakpoint was set
+   from the phone end and left the 900-1100 px band with two cramped columns. */
 .sheet-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
+}
+
+@media (min-width: 1320px) {
+  .sheet-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .sheet-left,
@@ -521,6 +533,14 @@ main {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  /* A table with no floor squeezes its columns instead of overflowing, and
+     `.table-scroll` can only scroll what actually overflows -- so the
+     4-column factor table wrapped to ONE CHARACTER PER LINE inside the
+     data sheet's right-hand column. The floor used to exist only below the
+     900 px phone breakpoint, which is the one width where the sheet is
+     already single-column and least needed it; the 900-1100 px band, where
+     two columns are attempted in far too little room, had none. */
+  min-width: 620px;
 }
 
 .factor-table th,
@@ -834,6 +854,10 @@ main {
     table-layout: fixed;
     width: 100%;
     font-size: 10px;
+    /* Paper cannot scroll, and the column widths below are already fixed
+       percentages of the page, so the screen floor must not apply here --
+       it would push the last column off the sheet. */
+    min-width: 0;
   }
 
   .factor-table th:nth-child(1),
@@ -1171,9 +1195,8 @@ main {
     min-width: 620px;
   }
 
-  .factor-table {
-    min-width: 620px;
-  }
+  /* .factor-table's floor is unconditional now (see its base rule): the
+     900-1100 px band needed it more than the phone did. */
 
   .info-table th {
     white-space: nowrap;

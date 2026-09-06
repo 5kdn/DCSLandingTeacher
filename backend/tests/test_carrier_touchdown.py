@@ -252,3 +252,48 @@ async def test_the_ingest_gate_lets_a_deck_touchdown_through(session_factory) ->
     # and landings.airframe are for).
     assert seen[-1].airframe == "FA-18C_hornet"
     assert seen[-1].pilot == "Trap"
+
+
+def test_the_proximity_prefilter_does_not_change_the_answer() -> None:
+    """The bounding-box skip is an optimisation, not a different test.
+
+    ``_reference_surfaces`` used to run a haversine per ship per sample over
+    the whole rolling buffer on every detection pass, including for land
+    recordings that merely share a mission with a carrier group. The latitude
+    window added in front of it must reject only samples the haversine would
+    have rejected anyway -- so a ship right under the aircraft still deck-
+    references exactly the same samples.
+    """
+    from app.detection.detector import _reference_surfaces
+
+    config = DetectionConfig()
+    samples = approach(final_altitude_m=DECK_ALTITUDE_M)
+
+    near = _reference_surfaces(samples, carrier(), config, deck_altitude_for, None)
+    assert any(is_deck for _, is_deck in near), "the ship is underneath; it must count"
+
+    # Same ship, two degrees away: every sample falls back to terrain.
+    distant = carrier()
+    state = distant["C1"]
+    state.samples = [
+        (t, lat + 2.0, lon + 2.0, alt, hdg, spd)
+        for (t, lat, lon, alt, hdg, spd) in state.samples
+    ]
+    far = _reference_surfaces(samples, distant, config, deck_altitude_for, None)
+    assert not any(is_deck for _, is_deck in far)
+
+    # And a ship just inside the radius is still found -- the window must not
+    # be tighter than carrier_proximity_m.
+    inside = carrier()
+    state = inside["C1"]
+    offset = (config.carrier_proximity_m * 0.9) / 111_320.0
+    state.samples = [
+        (t, lat + offset, lon, alt, hdg, spd)
+        for (t, lat, lon, alt, hdg, spd) in state.samples
+    ]
+    assert any(
+        is_deck
+        for _, is_deck in _reference_surfaces(
+            samples, inside, config, deck_altitude_for, None
+        )
+    )
