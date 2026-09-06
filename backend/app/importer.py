@@ -392,6 +392,7 @@ class ImportJobManager:
             landing_finalize_listener=self._pipeline.finalize_landing,
             source_id=import_source_id(job.id),
             detection_config=self._detection_config,
+            deck_altitude_for=self._pipeline.deck_altitude_for,
         )
         holder.append(
             _DuplicateGuard(job, self._session_factory, self._pipeline, ingestor)

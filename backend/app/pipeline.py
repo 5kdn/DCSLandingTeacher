@@ -210,6 +210,24 @@ class LandingPipeline:
             return None
         return self._geometry_book.resolve(event.carrier_name, event.carrier_type)
 
+    def deck_altitude_for(self, carrier: Any) -> float | None:
+        """Flight-deck height (MSL) of a tracked ship, for the DETECTOR.
+
+        The detector has to know how high the deck is before it can tell that
+        an aircraft is standing on one: Tacview's AGL is measured to the sea,
+        so a jet parked on a Nimitz reads ~22 m up and never satisfies the
+        weight-on-wheels test. The geometry book lives here, in the grading
+        layer, and the detector deliberately does not import it -- hence a
+        resolver handed down rather than a dependency.
+
+        ``None`` for a ship that is not in the book: better to detect no
+        carrier landing than to invent a deck height for an unknown hull.
+        """
+        geometry = self._geometry_book.resolve(
+            getattr(carrier, "name", None), getattr(carrier, "type", None)
+        )
+        return geometry.deck_altitude_m if geometry is not None else None
+
     async def _resolve_runway(self, event: LandingEvent):
         """Real runway geometry for a land landing (``None`` when unknown)."""
         if event.kind != "land" or self._runway_provider is None:

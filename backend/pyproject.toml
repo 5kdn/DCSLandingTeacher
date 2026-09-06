@@ -33,6 +33,13 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+# Tuning YAMLs copied into the package by the image build (see
+# docker/backend.Dockerfile). Absent in a source checkout, where config/ is
+# read directly; present in the image, where it is the copy that an empty
+# /app/config bind mount cannot hide.
+[tool.setuptools.package-data]
+"app.grading" = ["defaults/*.yaml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

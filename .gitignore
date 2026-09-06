@@ -45,3 +45,8 @@ Thumbs.db
 *.acmi.zip
 !backend/tests/fixtures/*.acmi
 Testdata/
+
+# Staged by the image build from config/*.yaml so the packaged copy cannot be
+# hidden by a bind mount (docker/backend.Dockerfile). config/ stays the single
+# canonical copy in git; committing this one would let the two drift.
+backend/app/grading/defaults/

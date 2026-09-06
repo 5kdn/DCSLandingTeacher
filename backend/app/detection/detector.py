@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 from app.detection.geometry import haversine_m, interpolate_position, transform_to_frame
@@ -164,6 +164,12 @@ class CarrierState:
         return alt0 + (alt1 - alt0) * frac
 
 
+#: Deck altitude (MSL) of a carrier, or ``None`` when the ship is not in the
+#: geometry book. Supplied by the caller because the book lives in the
+#: grading layer, which the detector deliberately does not import.
+DeckAltitudeResolver = Callable[["CarrierState"], float | None]
+
+
 @dataclass
 class Touchdown:
     time: float
@@ -175,6 +181,11 @@ class Touchdown:
     aoa: float | None
     descent_rate_ms: float
     ground_altitude_m: float
+    #: True when ``ground_altitude_m`` is a carrier deck rather than terrain.
+    #: Everything downstream that derives a height has to know, because
+    #: Tacview's per-sample AGL is measured to the sea and must not be used
+    #: as "height above the deck".
+    surface_is_deck: bool = False
 
 
 @dataclass
@@ -220,9 +231,19 @@ def compute_agl(
     sample: TrackSample,
     ground_altitude_m: float | None,
     config: DetectionConfig,
+    *,
+    trust_sample_agl: bool = True,
 ) -> float | None:
-    """Best-effort height above the touchdown surface for one sample."""
-    if sample.agl is not None:
+    """Best-effort height above the touchdown surface for one sample.
+
+    ``trust_sample_agl`` must be False when the surface underneath is a
+    carrier deck. Tacview's own ``AGL`` is measured to the terrain -- over
+    water, to the sea -- and knows nothing about a ship floating on it, so
+    an aircraft sitting on a flight deck reports about 20 m AGL and never
+    looks like it landed. Deriving the height from ``altitude`` minus the
+    deck altitude is the only reading that means "above the deck".
+    """
+    if trust_sample_agl and sample.agl is not None:
         return sample.agl
     if sample.altitude is not None and ground_altitude_m is not None:
         return sample.altitude - ground_altitude_m
@@ -233,14 +254,81 @@ def is_on_deck(
     sample: TrackSample,
     ground_altitude_m: float | None,
     config: DetectionConfig,
+    *,
+    trust_sample_agl: bool = True,
 ) -> bool | None:
     """Three-state WOW estimate: True / False / None (unknown)."""
     if sample.on_ground is not None:
         return sample.on_ground
-    agl = compute_agl(sample, ground_altitude_m, config)
+    agl = compute_agl(
+        sample, ground_altitude_m, config, trust_sample_agl=trust_sample_agl
+    )
     if agl is None:
         return None
+    if not trust_sample_agl:
+        # Over a deck the test is a BAND, not a ceiling. An aircraft cannot
+        # be below the deck it is standing on, and something 22 m below it
+        # is in the water beside the ship -- which is the only thing this
+        # detector has ever actually caught (all five stored "carrier
+        # landings" touched down between -3.75 m and +2.78 m altitude, two
+        # of them AIM-120s). The band is symmetric around the deck because
+        # the same tolerance covers noise in either direction; nothing here
+        # is calibrated beyond that.
+        return -config.wow_agl_threshold_m <= agl <= config.wow_agl_threshold_m
     return agl <= config.wow_agl_threshold_m
+
+
+def _reference_surfaces(
+    samples: list[TrackSample],
+    carriers: dict[str, CarrierState],
+    config: DetectionConfig,
+    deck_altitude_for: DeckAltitudeResolver | None,
+    ground_altitude_m: float | None,
+) -> list[tuple[float | None, bool]]:
+    """The surface under each sample: ``(altitude_msl, is_a_deck)``.
+
+    Why this is per-sample rather than one number for the track: an aircraft
+    recovering to a carrier is over the sea for the whole approach and over a
+    deck 20 m up for the last instant, and it is precisely that instant the
+    touchdown test has to get right.
+
+    Without it the carrier case cannot work at all. ``on_ground`` is absent
+    from this server's data (0 of 87.8 M track rows carry it), so the WOW
+    test falls back to ``agl <= 3 m``; Tacview reports AGL to the sea; a
+    Nimitz deck is 22 m up. An aircraft that traps therefore never registers
+    as on-deck, and the only "carrier landings" ever recorded here were
+    objects that hit the WATER within 800 m of a ship -- measured: all five
+    stored ones touch down between -3.75 m and +2.78 m altitude, and two of
+    them are AIM-120s.
+    """
+    if not carriers or deck_altitude_for is None:
+        return [(ground_altitude_m, False)] * len(samples)
+
+    #: Cache per carrier so the book is consulted once, not per sample.
+    decks: dict[str, float | None] = {
+        obj_id: deck_altitude_for(state) for obj_id, state in carriers.items()
+    }
+    surfaces: list[tuple[float | None, bool]] = []
+    for sample in samples:
+        best: float | None = None
+        best_distance = config.carrier_proximity_m
+        if sample.latitude is not None and sample.longitude is not None:
+            for obj_id, carrier in carriers.items():
+                deck = decks.get(obj_id)
+                if deck is None:
+                    continue
+                pos = carrier.position_at(sample.time)
+                if pos is None:
+                    continue
+                distance = haversine_m(
+                    sample.latitude, sample.longitude, pos[0], pos[1]
+                )
+                if distance <= best_distance:
+                    ship_altitude = carrier.altitude_at(sample.time) or 0.0
+                    best = ship_altitude + deck
+                    best_distance = distance
+        surfaces.append((best, True) if best is not None else (ground_altitude_m, False))
+    return surfaces
 
 
 def _descent_rate_before(samples: list[TrackSample], index: int, span_s: float = 3.0) -> float | None:
@@ -444,6 +532,7 @@ def analyze_track(
     carriers: dict[str, CarrierState] | None = None,
     config: DetectionConfig | None = None,
     current_time: float | None = None,
+    deck_altitude_for: DeckAltitudeResolver | None = None,
 ) -> list[LandingEvent]:
     """Detect landing events in a complete, time-sorted aircraft track.
 
@@ -458,7 +547,29 @@ def analyze_track(
     if len(samples) < 2:
         return []
 
-    wow = [is_on_deck(s, ground_altitude_m, config) for s in samples]
+    # The surface under each sample, which over a carrier is the deck and
+    # not the sea (see _reference_surfaces). Without this the WOW test can
+    # never fire for an aircraft that traps.
+    surfaces = _reference_surfaces(
+        samples, carriers, config, deck_altitude_for, ground_altitude_m
+    )
+    wow = [
+        is_on_deck(s, surface, config, trust_sample_agl=not on_deck)
+        for s, (surface, on_deck) in zip(samples, surfaces)
+    ]
+    # Sank THROUGH the deck: it is in the water beside the ship, not on it.
+    # An aircraft on a 3.5 deg path crosses deck height on its way down, so
+    # the band alone would still call that crossing a touchdown -- and then
+    # a full stop, because sinking is not a climb-out and nothing else ends
+    # the contact. This is precisely what produced the five bogus carrier
+    # "landings" in production. Being below the landing surface is the one
+    # unambiguous disqualifier, so it is tracked separately.
+    below_deck = [
+        on_deck
+        and (agl := compute_agl(s, surface, config, trust_sample_agl=False)) is not None
+        and agl < -config.wow_agl_threshold_m
+        for s, (surface, on_deck) in zip(samples, surfaces)
+    ]
 
     # Candidate touchdown indices: airborne/on-deck transitions.
     candidates: list[int] = []
@@ -476,13 +587,21 @@ def analyze_track(
     for index in candidates:
         if index <= used_through:
             continue
+        # A deck contact that is followed by the object sinking below the
+        # deck never happened: it passed the ship's height on its way into
+        # the sea. Stop before it becomes a "full stop" arrestment.
+        if _sinks_through_deck(below_deck, wow, index):
+            continue
         # Merge bounces: absorb a later contact only when the aircraft left
         # the deck in between but never climbed above bounce_merge_agl_m.
         last_index = index
         airborne_since_contact = False
         peak_agl = 0.0
         for j in range(index + 1, len(samples)):
-            agl = compute_agl(samples[j], ground_altitude_m, config)
+            surface_j, on_deck_j = surfaces[j]
+            agl = compute_agl(
+                samples[j], surface_j, config, trust_sample_agl=not on_deck_j
+            )
             if wow[j] is False:
                 airborne_since_contact = True
                 peak_agl = max(peak_agl, agl or 0.0)
@@ -499,7 +618,8 @@ def analyze_track(
             airborne_since_contact = False
             peak_agl = 0.0
 
-        touchdown = _make_touchdown(samples, last_index, ground_altitude_m)
+        surface, on_deck = surfaces[last_index]
+        touchdown = _make_touchdown(samples, last_index, surface, surface_is_deck=on_deck)
         outcome, climb_index = _classify_outcome(samples, wow, index, last_index, config)
 
         carrier = _nearest_carrier(touchdown, carriers, config)
@@ -540,13 +660,35 @@ def analyze_track(
     return events
 
 
+def _sinks_through_deck(
+    below_deck: list[bool],
+    wow: list[bool | None],
+    index: int,
+) -> bool:
+    """Did this contact end by going UNDER the deck rather than staying on it?
+
+    Scans forward from the contact until the object is clearly airborne
+    again (a bolter, which is a real outcome) or the track ends. Reaching
+    below-deck first means it never landed on anything.
+    """
+    for j in range(index, len(below_deck)):
+        if below_deck[j]:
+            return True
+        if wow[j] is False:
+            return False  # climbed away: a bolter, judged as one
+    return False
+
+
 def _make_touchdown(
     samples: list[TrackSample],
     index: int,
     ground_altitude_m: float | None,
+    *,
+    surface_is_deck: bool = False,
 ) -> Touchdown:
     sample = samples[index]
     return Touchdown(
+        surface_is_deck=surface_is_deck,
         time=sample.time,
         latitude=sample.latitude or 0.0,
         longitude=sample.longitude or 0.0,
@@ -614,7 +756,14 @@ def to_ship_relative(
         along, lateral = transform_to_frame(
             sample.latitude, sample.longitude, pos[0], pos[1], heading
         )
-        agl = compute_agl(sample, touchdown.ground_altitude_m, config)
+        # "height above the deck" is what this column has always claimed to
+        # be; Tacview's own AGL is height above the sea, so it cannot be it.
+        agl = compute_agl(
+            sample,
+            touchdown.ground_altitude_m,
+            config,
+            trust_sample_agl=not touchdown.surface_is_deck,
+        )
         distance_to_go = haversine_m(
             sample.latitude, sample.longitude, touchdown.latitude, touchdown.longitude
         )

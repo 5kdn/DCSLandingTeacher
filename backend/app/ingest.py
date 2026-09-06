@@ -46,6 +46,7 @@ from app.acmi.parser import AcmiParseError, AcmiParser
 from app.detection.classify import ObjectClass, classify_object_type
 from app.detection.detector import (
     CarrierState,
+    DeckAltitudeResolver,
     DetectionConfig,
     LandingEvent,
     RollingTrackBuffer,
@@ -119,6 +120,7 @@ class TrackIngestor:
         sample_buffer_s: float = 600.0,
         source_id: str = "default",
         detection_config: DetectionConfig | None = None,
+        deck_altitude_for: DeckAltitudeResolver | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._max_batch_size = max(1, max_batch_size)
@@ -152,6 +154,10 @@ class TrackIngestor:
         self._landing_finalize_listener = landing_finalize_listener
         self._sample_buffer_s = sample_buffer_s
         self._detection_config = detection_config or DetectionConfig()
+        #: 甲板高の解決器 (grading 側の carriers.yaml 由来)。無ければ空母の
+        #: 接地は検出されない --- 甲板がどれだけ高いか知らずに「甲板の上に
+        #: いる」とは言えないので、推測するより検出しない方を選ぶ。
+        self._deck_altitude_for = deck_altitude_for
         self._aircraft_buffers: dict[str, RollingTrackBuffer] = {}
         self._carrier_states: dict[str, CarrierState] = {}
         #: static object id -> (lat, lon, altitude)
@@ -749,6 +755,7 @@ class TrackIngestor:
             self._carrier_states,
             config=self._detection_config,
             current_time=None if force_final else last.time,
+            deck_altitude_for=self._deck_altitude_for,
         )
         if not events:
             self._settle_provisional_state(obj_id)

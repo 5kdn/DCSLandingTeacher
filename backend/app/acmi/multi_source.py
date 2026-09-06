@@ -13,7 +13,7 @@ from typing import Any
 
 from app.acmi.stream import AcmiStreamClient
 from app.config import TacviewSource, get_settings
-from app.detection.detector import DetectionConfig
+from app.detection.detector import DeckAltitudeResolver, DetectionConfig
 from app.ingest import (
     LandingFinalizeListener,
     LandingListener,
@@ -43,8 +43,10 @@ class MultiSourceAcmiManager:
         landing_listener: LandingListener | None = None,
         landing_finalize_listener: LandingFinalizeListener | None = None,
         detection_config: DetectionConfig | None = None,
+        deck_altitude_for: DeckAltitudeResolver | None = None,
     ) -> None:
         self._session_factory = session_factory
+        self._deck_altitude_for = deck_altitude_for
         self._landing_listener = landing_listener
         self._landing_finalize_listener = landing_finalize_listener
         self._detection_config = detection_config
@@ -72,6 +74,7 @@ class MultiSourceAcmiManager:
             landing_finalize_listener=self._landing_finalize_listener,
             source_id=source.id,
             detection_config=self._detection_config,
+            deck_altitude_for=self._deck_altitude_for,
         )
 
         # Line handler that tags events with source_id

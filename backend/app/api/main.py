@@ -24,6 +24,7 @@ from app.api.routes import protected_router, router as api_router
 from app.config import Settings
 from app.grading.carriers import load_carrier_geometry_book
 from app.grading.config import load_grading_config
+from app.grading.packaged import resolve_config_path
 from app.importer import ImportJobManager
 from app.logging_config import configure_logging
 from app.models.database import create_engine, create_session_factory, init_db
@@ -154,8 +155,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_logging(level=settings.log_level, json_logs=settings.structured_logs)
     engine = create_engine(settings.database_url)
     session_factory = create_session_factory(engine)
-    grading_config = load_grading_config(settings.grading_config_path)
-    carrier_geometry_book = load_carrier_geometry_book(settings.carriers_config_path)
+    # Resolve the tuning YAMLs here rather than inside the loaders, so the
+    # loaders keep their "missing file -> built-in defaults" contract for
+    # direct callers and tests. What this adds is a WARNING naming the path
+    # that was configured and absent, and a copy shipped inside the package
+    # that a bind mount cannot shadow. See app.grading.packaged for why: in
+    # production /app/config is an empty mount, and the server ran on the
+    # code defaults for weeks without saying a word.
+    grading_config_path = resolve_config_path(
+        settings.grading_config_path, "grading.yaml"
+    )
+    grading_config = load_grading_config(grading_config_path)
+    carrier_geometry_book = load_carrier_geometry_book(
+        resolve_config_path(settings.carriers_config_path, "carriers.yaml")
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -176,7 +189,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             notifier=notifier,
             carrier_geometry_book=carrier_geometry_book,
             runway_provider=runway_provider,
-            grading_config_path=settings.grading_config_path,
+            # 解決後のパスを渡す。設定マウントが空でパッケージ同梱の
+            # コピーを読んだ場合、存在しないパスを監視しても意味がない。
+            grading_config_path=(
+                str(grading_config_path) if grading_config_path is not None else None
+            ),
         )
 
         multi_source_manager: MultiSourceAcmiManager | None = None
@@ -187,6 +204,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 landing_listener=pipeline.handle_landing,
                 landing_finalize_listener=pipeline.finalize_landing,
                 detection_config=grading_config.to_detection_config(),
+                # 甲板高が無いと空母の接地は検出できない (Tacview の AGL は
+                # 海面基準)。carriers.yaml が読めていれば解決器が値を返す。
+                deck_altitude_for=pipeline.deck_altitude_for,
             )
             await multi_source_manager.start()
             # Legacy compatibility: expose first source's client as acmi_client
@@ -223,9 +243,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # previous restart remain queryable (Issue #28).
         await import_manager.load_persisted()
 
-        config_path = Path(settings.grading_config_path)
+        config_path = grading_config_path
         config_watch_task = None
-        if config_path.is_file():
+        if config_path is not None and config_path.is_file():
             config_watch_task = asyncio.create_task(
                 _poll_grading_config(app, pipeline, config_path)
             )

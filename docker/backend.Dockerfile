@@ -21,6 +21,17 @@ FROM python:3.11-slim AS backend-build
 WORKDIR /build
 COPY backend/pyproject.toml ./
 COPY backend/app ./app
+# The tuning YAMLs go INSIDE the package as well as into /app/config below.
+# A bind mount can only shadow the path it is mounted on, and site-packages
+# is not that path -- so this copy is readable however /app/config is
+# mounted. It is what stops an empty config mount from silently demoting the
+# server to the built-in code defaults (see app/grading/packaged.py); that
+# is exactly what production was doing, with the LSO factor table missing
+# and every carrier landing grading "OK" as a result.
+#
+# Copied at build time from the single canonical copy in config/, so the two
+# cannot drift apart in git.
+COPY config/grading.yaml config/carriers.yaml ./app/grading/defaults/
 RUN pip wheel --no-cache-dir --wheel-dir=/wheels .
 
 # ---------------------------------------------------------------------------
@@ -37,6 +48,10 @@ COPY --from=backend-build /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*.whl && rm -rf /wheels
 
 COPY config/grading.yaml /app/config/grading.yaml
+# carriers.yaml was never copied here, so even an image with a working config
+# mount had no FLOLS geometry: every carrier approach fell back to the
+# touchdown-referenced approximation.
+COPY config/carriers.yaml /app/config/carriers.yaml
 COPY --from=frontend-build /src/frontend/dist /app/frontend/dist
 # Alembic migration scripts (applied automatically at startup).
 COPY backend/migrations /app/migrations
@@ -46,6 +61,7 @@ ENV DLT_HOST=0.0.0.0 \
     DLT_PORT=8000 \
     DLT_DATABASE_URL=sqlite+aiosqlite:////data/dlt.db \
     DLT_GRADING_CONFIG_PATH=/app/config/grading.yaml \
+    DLT_CARRIERS_CONFIG_PATH=/app/config/carriers.yaml \
     DLT_FRONTEND_DIST_DIR=/app/frontend/dist \
     DLT_MIGRATIONS_DIR=/app/migrations \
     DLT_RUNWAY_CACHE_DIR=/data/cache
