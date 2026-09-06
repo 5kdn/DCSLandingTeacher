@@ -231,7 +231,9 @@ const METRIC_VALUE_JA: Record<string, string> = {
     "艦の幾何が未登録（接地点基準の近似で採点。ランプ基準ではない）",
   "geometry_confidence:unvalidated":
     "艦は登録済みだが未検証（甲板高・ランプ位置は推定値）",
-  "geometry_confidence:validated": "実測データで検証済み",
+  // 同梱の carriers.yaml は全 entry が validated:false なので、この枝は
+  // 現状どの艦でも出ない。検証済みの値を入れたときに初めて出る。
+  "geometry_confidence:validated": "艦の幾何は実測データで検証済み",
 };
 
 /** 評価メトリクスの日本語ラベル。無いキーは従来どおりキー名を出す。 */

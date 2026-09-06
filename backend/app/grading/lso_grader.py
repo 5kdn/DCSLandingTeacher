@@ -381,7 +381,10 @@ def grade_carrier_approach(
         #   "unvalidated" the ship WAS found, but its entry carries
         #                 validated:false -- the deck height and ramp offsets
         #                 are community estimates nobody has checked against
-        #                 real trap data. Every entry in the shipped file is.
+        #                 real trap data. Every entry in the shipped
+        #                 carriers.yaml is, which makes "validated" currently
+        #                 UNREACHABLE: it appears only once someone puts
+        #                 measured geometry in the file.
         #
         # Reported, never scored: there is no validated carrier data on this
         # deployment to calibrate a correction from, so the honest move is to

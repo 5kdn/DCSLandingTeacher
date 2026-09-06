@@ -541,8 +541,14 @@ main {
      4-column factor table wrapped to ONE CHARACTER PER LINE inside the
      data sheet's right-hand column. The floor used to exist only below the
      900 px phone breakpoint, which is the one width where the sheet is
-     already single-column and least needed it; the 900-1100 px band, where
-     two columns are attempted in far too little room, had none. */
+     already single-column and least needed it; above it there was none.
+
+     620 px is inherited, not derived: it arrived in a single commit that
+     gave the same number to this table and to the 8-column landing table,
+     and nothing has ever measured what these four columns of Japanese
+     actually need. It is wide enough that the observed squashing stops,
+     which is the property relied on here -- a floor that works, not a
+     measurement. */
   min-width: 620px;
 }
 
@@ -1175,12 +1181,12 @@ main {
 }
 
 @media (max-width: 900px) {
-  /* The sheet is single-column at every width now (see .sheet-grid), so
-     there is nothing to collapse here any more -- only the spacing that
-     the stacked halves need. */
-  .sheet-right {
-    margin-top: 16px;
-  }
+  /* No .sheet-right margin here any more. It existed because the sheet used
+     to be `display: block` at this width, where a grid gap does not apply.
+     Now that the grid is single-column at every width its 24px gap owns the
+     spacing, and leaving the margin in made the two ADD: measured 40px below
+     900px against 16px before, which also falsified this change's own claim
+     that nothing below 900px moved. */
 
   /* Let the tables keep a readable width and scroll sideways instead of
      compressing every column to nothing -- and drop the two columns that

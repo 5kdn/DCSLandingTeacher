@@ -282,35 +282,69 @@ def test_the_proximity_prefilter_does_not_change_the_answer() -> None:
     far = _reference_surfaces(samples, distant, config, deck_altitude_for, None)
     assert not any(is_deck for _, is_deck in far)
 
-    # And a ship just inside the radius is still found, on EITHER axis -- the
-    # window must never be tighter than carrier_proximity_m.
-    #
-    # The east/west case is the one that catches a latitude-sized window used
-    # for both axes: a degree of longitude is 111 km * cos(lat), so at this
-    # fixture's 35 N a ship 720 m due east is 0.0079 deg away while a
-    # latitude-sized window is only 0.0072 deg wide, and the prefilter would
-    # silently discard a carrier the haversine would have accepted. The first
-    # version of this test only moved the ship NORTH, which is exactly the
-    # axis where that bug is invisible.
+    # And the invariant that actually matters: the box must never reject a
+    # ship the haversine would accept. The previous version of this check
+    # placed the ship at 0.9x the radius, which is 10% inside a margin worth
+    # 0.19% -- it would have stayed green through a change that narrowed the
+    # window almost to the radius. Sweep bearings instead, right up against
+    # the edge, and compare against the haversine itself.
     import math
 
-    for axis in ("north", "east"):
-        inside = carrier()
-        state = inside["C1"]
-        metres = config.carrier_proximity_m * 0.9
-        d_lat = metres / 111_320.0 if axis == "north" else 0.0
-        d_lon = (
-            0.0
-            if axis == "north"
-            else metres / (111_320.0 * math.cos(math.radians(LAT0)))
+    from app.detection.geometry import EARTH_RADIUS_M, haversine_m
+
+    def place(lat, lon, distance_m, bearing_deg):
+        """Point `distance_m` from (lat, lon) on the sphere haversine_m uses."""
+        ang = distance_m / EARTH_RADIUS_M
+        br = math.radians(bearing_deg)
+        p1 = math.radians(lat)
+        l1 = math.radians(lon)
+        p2 = math.asin(
+            math.sin(p1) * math.cos(ang) + math.cos(p1) * math.sin(ang) * math.cos(br)
         )
-        state.samples = [
-            (t, lat + d_lat, lon + d_lon, alt, hdg, spd)
-            for (t, lat, lon, alt, hdg, spd) in state.samples
-        ]
-        assert any(
-            is_deck
-            for _, is_deck in _reference_surfaces(
-                samples, inside, config, deck_altitude_for, None
-            )
-        ), f"a ship {metres:.0f} m {axis} of the track is inside the radius"
+        l2 = l1 + math.atan2(
+            math.sin(br) * math.sin(ang) * math.cos(p1),
+            math.cos(ang) - math.sin(p1) * math.sin(p2),
+        )
+        return math.degrees(p2), (math.degrees(l2) + 540.0) % 360.0 - 180.0
+
+    radius = config.carrier_proximity_m
+    for lat in (0.0, 35.0, 42.0, 60.0, 80.0, 89.0):
+        for bearing in range(0, 360, 7):
+            for fraction in (0.5, 0.95, 0.999):
+                ship_lat, ship_lon = place(lat, 0.0, radius * fraction, bearing)
+                assert haversine_m(lat, 0.0, ship_lat, ship_lon) <= radius
+                one = [
+                    TrackSample(
+                        time=0.0, latitude=lat, longitude=0.0, altitude=50.0,
+                        agl=50.0, on_ground=None,
+                    )
+                ]
+                state = CarrierState(
+                    obj_id="C1", name="CVN_73",
+                    type="Sea+Watercraft+AircraftCarrier",
+                    samples=[(t, ship_lat, ship_lon, 0.0, 0.0, 0.0) for t in (-9.0, 9.0)],
+                )
+                surface, is_deck = _reference_surfaces(
+                    one, {"C1": state}, config, deck_altitude_for, None
+                )[0]
+                assert is_deck, (
+                    f"prefilter rejected a ship {radius * fraction:.0f} m away "
+                    f"on bearing {bearing} at latitude {lat}"
+                )
+
+    # Longitude wraps: a ship just across the antimeridian is metres away, not
+    # 360 degrees away.
+    near_dateline = [
+        TrackSample(
+            time=0.0, latitude=0.0, longitude=-179.9995, altitude=50.0,
+            agl=50.0, on_ground=None,
+        )
+    ]
+    across = CarrierState(
+        obj_id="C1", name="CVN_73", type="Sea+Watercraft+AircraftCarrier",
+        samples=[(t, 0.0, 179.9995, 0.0, 0.0, 0.0) for t in (-9.0, 9.0)],
+    )
+    assert haversine_m(0.0, -179.9995, 0.0, 179.9995) < config.carrier_proximity_m
+    assert _reference_surfaces(
+        near_dateline, {"C1": across}, config, deck_altitude_for, None
+    )[0][1], "the box must wrap longitude the way haversine_m does"

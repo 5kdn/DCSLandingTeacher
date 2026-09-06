@@ -41,7 +41,12 @@ from collections import deque
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
-from app.detection.geometry import haversine_m, interpolate_position, transform_to_frame
+from app.detection.geometry import (
+    haversine_m,
+    interpolate_position,
+    meters_per_degree_latitude,
+    transform_to_frame,
+)
 
 
 @dataclass
@@ -331,27 +336,52 @@ def _reference_surfaces(
     # 0.0097 deg of longitude: a single latitude-sized window would have
     # discarded any ship more than ~600 m due east or west while still inside
     # the 800 m radius.
-    window_lat_deg = config.carrier_proximity_m / 111_000.0 + 1e-6
+    #
+    # Derived from the SAME sphere haversine_m measures on, not from a
+    # hand-rounded 111_000. Those differ by 195 m per degree, and with the
+    # rounded value the box's entire soundness was that 0.19% gap -- narrowing
+    # the constant toward the true figure would have silently made the filter
+    # reject ships in range, with the suite still green. SLACK is explicit
+    # room for floating-point error, so the margin is a stated quantity
+    # instead of a side effect of rounding.
+    SLACK = 1.001
+    window_lat_deg = (
+        config.carrier_proximity_m / meters_per_degree_latitude(0.0)
+    ) * SLACK
 
     surfaces: list[tuple[float | None, bool]] = []
     for sample in samples:
         best: float | None = None
         best_distance = config.carrier_proximity_m
         if sample.latitude is not None and sample.longitude is not None:
-            # cos is clamped so a track over a pole widens the window to
-            # everything rather than dividing by ~0 and rejecting every ship.
-            window_lon_deg = window_lat_deg / max(
-                math.cos(math.radians(sample.latitude)), 1e-6
-            )
+            # Near the poles a degree of longitude shrinks to nothing, so the
+            # window this produces stops bounding the radius; below cos(lat)
+            # 0.01 (|lat| > ~89.4 deg) the box is skipped and every ship goes
+            # to the haversine. The earlier version claimed the 1e-6 clamp
+            # covered this -- it does not, it only stops the division blowing
+            # up, and the box is already unsound well before cos gets that
+            # small. No track here goes past 45.3 deg, so this is correctness
+            # for its own sake rather than a fix for an observed failure.
+            cos_lat = math.cos(math.radians(sample.latitude))
+            use_box = cos_lat >= 0.01
+            window_lon_deg = window_lat_deg / cos_lat if use_box else 0.0
             for _obj_id, carrier, deck in known:
                 pos = carrier.position_at(sample.time)
                 if pos is None:
                     continue
-                if (
-                    abs(pos[0] - sample.latitude) > window_lat_deg
-                    or abs(pos[1] - sample.longitude) > window_lon_deg
-                ):
-                    continue
+                if use_box:
+                    # Longitude wraps: a ship at +179.9995 and an aircraft at
+                    # -179.9995 are 400 m apart but 359.999 degrees apart by
+                    # subtraction, and the raw difference threw them away
+                    # while haversine_m (which wraps correctly) would have
+                    # accepted them.
+                    d_lon = abs(pos[1] - sample.longitude)
+                    d_lon = min(d_lon, 360.0 - d_lon)
+                    if (
+                        abs(pos[0] - sample.latitude) > window_lat_deg
+                        or d_lon > window_lon_deg
+                    ):
+                        continue
                 distance = haversine_m(
                     sample.latitude, sample.longitude, pos[0], pos[1]
                 )

@@ -8,9 +8,19 @@ migration: 124 landings displayed an airframe disagreeing with the one in
 their own ``approach_track``, including 7 UH-1H landings shown as "AIM_120".
 
 ``approach_track.airframe`` is the value captured at detection time, so it is
-the correct one and the backfill uses it. The pilot was never stored there
-and cannot be recovered for old rows; those keep falling back to the object
-row, which is no worse than before.
+the correct one and the backfill uses it.
+
+The pilot is NOT backfilled, and the reason is worth stating precisely
+because an earlier version of this note got it wrong. The names are not lost:
+they were recorded at ingest in ``objects.pilot``, and 476 of the 497 rows
+with a null ``landings.pilot`` still join to one (measured 2026-09-06). What
+is missing is a DETECTION-TIME copy. Filling the column from the object row
+would look like a repair while actually asserting, as this landing's own
+recorded fact, a value taken from the mutable row the column exists to stop
+trusting -- and roughly 130 of those rows are ones whose object identity is
+already known to have been overwritten. Reading through the fallback in
+``routes._summary`` shows the same names today without making that claim, so
+the column stays null for old rows and only new landings burn theirs in.
 """
 
 from alembic import op
