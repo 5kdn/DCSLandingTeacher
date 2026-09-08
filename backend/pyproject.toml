@@ -3,27 +3,26 @@ name = "dcs-landing-teacher-backend"
 version = "0.3.0"
 description = "DCS landing / carrier-arrestment review and grading tool (backend)"
 requires-python = ">=3.11"
-# License: MIT (see ../LICENSE at the repository root)
 license = "MIT"
 dependencies = [
-    "fastapi>=0.110",
-    "uvicorn[standard]>=0.29",
-    "sqlalchemy>=2.0",
-    "psycopg[binary]>=3.3.5",
-    "pydantic>=2.6",
-    "pydantic-settings>=2.2",
+    "fastapi>=0.141",
+    "httpx2>=2.12",
+    "psycopg[binary]>=3.3",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.15",
+    "python-multipart>=0.0.32",
     "pyyaml>=6.0",
-    "python-multipart>=0.0.9",
-    "httpx2>=2.12.0",
+    "sqlalchemy>=2.0",
+    "uvicorn[standard]>=0.52",
 ]
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.39.10",
-    "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
-    "aiosqlite>=0.20",
-    "ruff>=0.16.6",
+    "aiosqlite>=0.22",
+    "basedpyright>=1.40",
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.16",
 ]
 
 [tool.pytest.ini_options]
