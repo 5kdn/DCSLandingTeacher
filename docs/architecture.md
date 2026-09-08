@@ -11,7 +11,7 @@ flowchart LR
     ING --> PARSER[ACMI Parser<br/>app.acmi.parser]
     PARSER --> DETECTOR[Landing Detector<br/>app.detection]
     DETECTOR --> GRADER[LSO / Land Grader<br/>app.grading]
-    GRADER --> DB[(SQLite)]
+    GRADER --> DB[(PostgreSQL)]
     PARSER -- 進入区間生データ --> DB
     API[FastAPI Server<br/>app.api] --> DB
     API -- "REST + WebSocket (/api)" --> UI[React Frontend]
@@ -38,7 +38,7 @@ flowchart LR
 | [`grading/config.py`](../backend/app/grading/config.py) | `config/grading.yaml` の読み込み（閾値はすべて外部化） |
 | [`grading/carriers.py`](../backend/app/grading/carriers.py) | `config/carriers.yaml`（艦別 FLOLS ジオメトリ、Issue #3）の読み込みと解決。未知の艦はタッチダウン基準の近似へフォールバック。**収録値は未検証の推定値**であり、実データでの検証が残っている |
 | [`pipeline.py`](../backend/app/pipeline.py) | 検出 → 採点 → DB 保存 → WebSocket 通知の一連パイプライン。再評価（regrade）も担当 |
-| [`models/`](../backend/app/models/) | SQLAlchemy (async, aiosqlite) エンティティ。着陸レコードには進入区間の生サンプルも JSON 保存（FR-7 再評価要件）。スキーマは Alembic マイグレーションで管理（[`migrations/`](../backend/migrations/)、起動時自動適用） |
+| [`models/`](../backend/app/models/) | SQLAlchemy（async, psycopg）エンティティ。着陸レコードには進入区間の生サンプルも JSON 保存（FR-7 再評価要件）。スキーマは [`migration-job/`](../migration-job/) の Alembic マイグレーションで管理 |
 | [`api/routes.py`](../backend/app/api/routes.py) | REST + WebSocket エンドポイント（下記 API セクション） |
 | [`api/notifier.py`](../backend/app/api/notifier.py) | WebSocket 接続管理・着陸通知のブロードキャスト |
 | [`api/main.py`](../backend/app/api/main.py) | アプリケーションファクトリ。lifespan で DB 初期化・ACMI クライアント起動。CORS、SPA 静的配信 |
@@ -48,7 +48,7 @@ flowchart LR
 1. `AcmiStreamClient` が Tacview へ接続し、受信行を `TrackIngestor.handle_line` へ渡す
 2. パーサが時刻・オブジェクト状態を更新し、ingestor が機体別バッファへ追記する
 3. 検出器が接地（WOW）を検出すると、最終進入区間（既定 60 秒 / 2 nm）を切り出す
-4. パイプラインが空母/陸地を判定して対応グレーダで採点し、SQLite に保存
+4. パイプラインが空母/陸地を判定して対応グレーダで採点し、PostgreSQL に保存
 5. `LandingNotifier` が接続中の全 WebSocket クライアントへ `{"type": "landing", ...}` を送信。
    タッチダウン直後は outcome 未確定のため `outcome_status: "provisional"` として即時通知し、
    full-stop 滞地時間の経過などで確定した時点で同一レコードを更新する
@@ -91,10 +91,10 @@ flowchart LR
 ```
 docker/backend.Dockerfile   # Node で frontend/dist をビルド → Python 3.11-slim ランタイムに同梱
 docker/frontend.Dockerfile  # （任意）nginx 配信に分離したい場合の代替イメージ
-docker-compose.yml          # 単一サービス。SQLite は名前付きボリューム /data に永続化
+docker-compose.yml          # API、PostgreSQL、migration-job を起動
 ```
 
-- コンテナ内では `DLT_DATABASE_URL=sqlite+aiosqlite:////data/dlt.db` を使用（ボリューム永続化）
+- コンテナ内では `DLT_DATABASE_URL=postgresql+psycopg://…@db:5432/…` を使用し、`postgres_data` ボリュームに永続化する
 - `config/grading.yaml` はイメージに焼き込まれるほか、compose 実行時はホスト側を
   読み取り専用マウントするため、閾値調整が即反映される
 - Tacview ホストの既定値は `host.docker.internal`（Linux は `extra_hosts: host-gateway` で解決）

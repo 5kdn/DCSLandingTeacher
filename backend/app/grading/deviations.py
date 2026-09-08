@@ -102,8 +102,8 @@ class DeviationSample:
 class ApproachAnalysis:
     """Deviations and state over the final approach, ready for graders."""
 
-    kind: str                       # "carrier" | "land"
-    outcome: str                    # "full_stop" | "touch_and_go" | "bolter"
+    kind: str  # "carrier" | "land"
+    outcome: str  # "full_stop" | "touch_and_go" | "bolter"
     glideslope_deg: float
     course_deg: float
     touchdown_time: float
@@ -134,9 +134,7 @@ class ApproachAnalysis:
         evaluation.
         """
         limit = self.touchdown_time - seconds_before_touchdown
-        return [
-            s for s in self.samples if limit <= s.time < self.touchdown_time
-        ]
+        return [s for s in self.samples if limit <= s.time < self.touchdown_time]
 
     def as_dict(self) -> dict:
         return {
@@ -208,9 +206,7 @@ class ApproachAnalysis:
                     )
                 )
             except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"approach_track.samples[{index}] invalid: {exc}"
-                ) from exc
+                raise ValueError(f"approach_track.samples[{index}] invalid: {exc}") from exc
         try:
             return cls(
                 kind=data["kind"],
@@ -260,9 +256,7 @@ MIN_TRACK_DISPLACEMENT_M = 300.0
 MAX_TRACK_CURVATURE_DEG = 8.0
 
 
-def _position_bearing(
-    lat0: float, lon0: float, lat1: float, lon1: float
-) -> float | None:
+def _position_bearing(lat0: float, lon0: float, lat1: float, lon1: float) -> float | None:
     if (lat0, lon0) == (lat1, lon1):
         return None
     dx = math.radians(lon1 - lon0) * math.cos(math.radians((lat0 + lat1) / 2))
@@ -378,8 +372,7 @@ def estimate_course_deg(
         if track is not None:
             if (
                 touchdown_heading is None
-                or abs(_angular_diff(touchdown_heading, track))
-                <= MAX_PLAUSIBLE_CRAB_DEG
+                or abs(_angular_diff(touchdown_heading, track)) <= MAX_PLAUSIBLE_CRAB_DEG
             ):
                 return track
             # Too far from the heading to be a crab: the window is probably
@@ -440,14 +433,10 @@ def build_approach_analysis(
     # need it, and it used to be computed twice per landing.
     stabilized_track: float | None = None
     if event.kind == "land":
-        stabilized_track = _stabilized_track_course(
-            event.approach, touchdown_time=touchdown.time
-        )
+        stabilized_track = _stabilized_track_course(event.approach, touchdown_time=touchdown.time)
 
     if geometry is not None and event.carrier_latitude is not None:
-        course = (
-            (event.carrier_heading_deg or 0.0) + geometry.landing_course_offset_deg
-        ) % 360.0
+        course = ((event.carrier_heading_deg or 0.0) + geometry.landing_course_offset_deg) % 360.0
         ref_lat, ref_lon = offset_position(
             event.carrier_latitude,
             event.carrier_longitude,
@@ -522,9 +511,7 @@ def build_approach_analysis(
             sample.latitude, sample.longitude, ref_lat, ref_lon, course
         )
         distance_to_go = max(0.0, -along)
-        distance_to_threshold = (
-            -along - threshold_along if threshold_along is not None else None
-        )
+        distance_to_threshold = -along - threshold_along if threshold_along is not None else None
 
         agl: float | None
         if runway is not None and sample.altitude is not None:

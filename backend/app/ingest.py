@@ -110,9 +110,7 @@ LandingFinalizeListener = Callable[[int, LandingContext], Awaitable[None]]
 _META_FIELDS = {"type": 0, "name": 1, "pilot": 2, "group": 3, "country": 4}
 
 
-def _identity(
-    source: Any | None, meta: tuple[str | None, ...] | None, field: str
-) -> str | None:
+def _identity(source: Any | None, meta: tuple[str | None, ...] | None, field: str) -> str | None:
     """One identity field, from the live parser object or the last known one.
 
     ``source`` is ``None`` on the removal-driven detection pass, because the
@@ -657,9 +655,7 @@ class TrackIngestor:
             position = carrier.position_at(sample.time)
             if position is None:
                 continue
-            distance = haversine_m(
-                sample.latitude, sample.longitude, position[0], position[1]
-            )
+            distance = haversine_m(sample.latitude, sample.longitude, position[0], position[1])
             if distance <= best_distance:
                 best = (carrier.altitude_at(sample.time) or 0.0) + deck
                 best_distance = distance
@@ -732,9 +728,7 @@ class TrackIngestor:
             return speed
         return None
 
-    def _ground_altitude_for(
-        self, latitude: float | None, longitude: float | None
-    ) -> float | None:
+    def _ground_altitude_for(self, latitude: float | None, longitude: float | None) -> float | None:
         """Elevation of the nearest carrier deck / static within range."""
         best: float | None = None
         best_distance = GROUND_REFERENCE_RADIUS_M
@@ -755,9 +749,7 @@ class TrackIngestor:
                 best = alt
         return best
 
-    async def _maybe_detect_landing(
-        self, obj_id: str, *, force_final: bool = False
-    ) -> None:
+    async def _maybe_detect_landing(self, obj_id: str, *, force_final: bool = False) -> None:
         buffer = self._aircraft_buffers.get(obj_id)
         if buffer is None:
             return
@@ -791,9 +783,7 @@ class TrackIngestor:
             gate_ground_altitude = deck
             trust_sample_agl = False
         elif last.on_ground is None and last.agl is None:
-            gate_ground_altitude = self._ground_altitude_for(
-                last.latitude, last.longitude
-            )
+            gate_ground_altitude = self._ground_altitude_for(last.latitude, last.longitude)
             trust_sample_agl = True
         else:
             gate_ground_altitude = None
@@ -807,11 +797,7 @@ class TrackIngestor:
         wow_before = self._last_wow.get(obj_id)
         self._last_wow[obj_id] = wow_now
         new_contact = wow_before is not True and wow_now is True
-        if (
-            not force_final
-            and not new_contact
-            and obj_id not in self._provisional_aircraft
-        ):
+        if not force_final and not new_contact and obj_id not in self._provisional_aircraft:
             return
 
         # Full pass: snapshot only now, after the gate admitted this update.
@@ -982,10 +968,7 @@ class TrackIngestor:
         dt = sample.time - last.time
         if dt <= 0:
             return sample
-        speed = (
-            haversine_m(last.latitude, last.longitude, sample.latitude, sample.longitude)
-            / dt
-        )
+        speed = haversine_m(last.latitude, last.longitude, sample.latitude, sample.longitude) / dt
         if speed <= self.POSITION_JUMP_SPEED_MS:
             return sample
         logger.debug(

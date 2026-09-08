@@ -76,9 +76,7 @@ class FlolsGeometry:
             glideslope_deg=float(data["glideslope_deg"]),
             landing_course_offset_deg=float(data["landing_course_offset_deg"]),
             beam_width_m=(
-                float(data["beam_width_m"])
-                if data.get("beam_width_m") is not None
-                else None
+                float(data["beam_width_m"]) if data.get("beam_width_m") is not None else None
             ),
             validated=bool(data.get("validated", False)),
         )
@@ -108,9 +106,7 @@ class CarrierGeometryBook:
         #: simply not in the book would otherwise log on every single trap.
         self._reported_misses: set[tuple[str | None, str | None]] = set()
 
-    def resolve(
-        self, name: str | None, type_str: str | None = None
-    ) -> FlolsGeometry | None:
+    def resolve(self, name: str | None, type_str: str | None = None) -> FlolsGeometry | None:
         """Find the geometry for a ship; ``None`` when unknown (fallback).
 
         DCS ``Type`` strings are standardized, so they are tried before the
@@ -129,7 +125,8 @@ class CarrierGeometryBook:
             self._reported_misses.add(miss)
             logger.warning(
                 "Carrier %r (%r) not in geometry book; using fallback approximation",
-                name, type_str,
+                name,
+                type_str,
             )
         return None
 

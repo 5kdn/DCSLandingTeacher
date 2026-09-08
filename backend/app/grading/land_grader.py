@@ -40,7 +40,7 @@ from app.grading.pattern import (
 )
 
 MS_TO_FPM = 60.0 / 0.3048  # ~196.85
-M_TO_FT = 1.0 / 0.3048     # ~3.281
+M_TO_FT = 1.0 / 0.3048  # ~3.281
 
 # ---------------------------------------------------------------------------
 # Tunable thresholds (Issue #43). The remaining inline literals that represent
@@ -48,7 +48,7 @@ M_TO_FT = 1.0 / 0.3048     # ~3.281
 # instead of being scattered magic numbers.
 # ---------------------------------------------------------------------------
 CENTERLINE_DEVIATION_FLAG_M = 5.0  # centerline deviation that raises a flag (m)
-DESCENT_RATE_EXTREME_SCORE = 5.0   # floor score for an extremely hard landing
+DESCENT_RATE_EXTREME_SCORE = 5.0  # floor score for an extremely hard landing
 
 #: ``unscored_reason`` values. Machine-readable (English, like ``verdict``);
 #: the UI maps them to Japanese for display.
@@ -201,9 +201,7 @@ def _descent_rate_score(fpm: float, bands: dict[str, Any]) -> tuple[float, str]:
     return score, label
 
 
-def _speed_ratio_score(
-    ratio: float | None, bands: dict[str, Any]
-) -> tuple[float | None, str]:
+def _speed_ratio_score(ratio: float | None, bands: dict[str, Any]) -> tuple[float | None, str]:
     """接地速度スコア。基準はファイナル区間 (フレア直前まで) の平均速度。
 
     バンドは **非対称**。フレアで数 % 減速して接地するのは正常な操作で、
@@ -221,14 +219,10 @@ def _speed_ratio_score(
         return 100.0, "on speed"
     if ratio > fast_good:
         span = max(fast_fair - fast_good, 1e-6)
-        score = _interpolate(
-            ratio - fast_good, [(0.0, 100.0), (span, 65.0), (span + 0.10, 30.0)]
-        )
+        score = _interpolate(ratio - fast_good, [(0.0, 100.0), (span, 65.0), (span + 0.10, 30.0)])
         return score, ("slightly fast" if ratio <= fast_fair else "fast")
     span = max(slow_good - slow_fair, 1e-6)
-    score = _interpolate(
-        slow_good - ratio, [(0.0, 100.0), (span, 65.0), (span + 0.10, 30.0)]
-    )
+    score = _interpolate(slow_good - ratio, [(0.0, 100.0), (span, 65.0), (span + 0.10, 30.0)])
     return score, ("slightly slow" if ratio >= slow_fair else "slow")
 
 
@@ -369,9 +363,7 @@ def _glideslope_errors(
         if not errors:
             return None
         mean_error = sum(errors) / len(errors)
-        spread = math.sqrt(
-            sum((e - mean_error) ** 2 for e in errors) / len(errors)
-        )
+        spread = math.sqrt(sum((e - mean_error) ** 2 for e in errors) / len(errors))
         return GlideslopeError(
             abs_error_deg=sum(abs(e) for e in errors) / len(errors),
             signed_error_deg=mean_error,
@@ -380,9 +372,7 @@ def _glideslope_errors(
         )
 
     points = [
-        (s.distance_to_go, s.agl)
-        for s in window
-        if s.agl is not None and s.distance_to_go > 0
+        (s.distance_to_go, s.agl) for s in window if s.agl is not None and s.distance_to_go > 0
     ]
     if len(points) < 3:
         return None
@@ -667,8 +657,7 @@ def grade_land_landing(
     rate_score, rate_label = _descent_rate_score(descent_fpm, rate_bands)
     # このクラスでは「測るが採点しない」項目 (ヘリの接地速度比など)。
     unscored = {
-        str(name)
-        for name in (settings.get("unscored_by_class", {}) or {}).get(frame_class, ())
+        str(name) for name in (settings.get("unscored_by_class", {}) or {}).get(frame_class, ())
     }
 
     mean_speed, speed_reference = _approach_speed_reference(analysis, settings, segments)
@@ -677,9 +666,7 @@ def grade_land_landing(
         if analysis.touchdown_speed_ms is not None and mean_speed
         else None
     )
-    speed_score, speed_label = _speed_ratio_score(
-        speed_ratio, settings["touchdown_speed_ratio"]
-    )
+    speed_score, speed_label = _speed_ratio_score(speed_ratio, settings["touchdown_speed_ratio"])
 
     gs_window = _glideslope_window(analysis, settings, segments)
     # 絶対値と符号付きを分けて持つ: 絶対値は上下に振れた進入が相殺されて
@@ -690,9 +677,7 @@ def grade_land_landing(
     mean_signed_gs_err = gs_error.signed_error_deg if gs_error else None
     gs_method = gs_error.method if gs_error else "none"
     # メートル値も参考として残す (UI の既存表示・過去データとの比較用)。
-    gs_devs = [
-        s.glideslope_deviation for s in gs_window if s.glideslope_deviation is not None
-    ]
+    gs_devs = [s.glideslope_deviation for s in gs_window if s.glideslope_deviation is not None]
     mean_gs_dev = sum(abs(d) for d in gs_devs) / len(gs_devs) if gs_devs else None
     mean_signed_gs_dev = sum(gs_devs) / len(gs_devs) if gs_devs else None
     gs_bands = settings["glideslope_error_deg"]
@@ -761,22 +746,16 @@ def grade_land_landing(
             weights["glideslope"],
             {
                 # 採点はこの角度誤差で行う (メートルは距離依存で比較不能)。
-                "mean_abs_error_deg": (
-                    round(mean_gs_err, 3) if mean_gs_err is not None else None
-                ),
+                "mean_abs_error_deg": (round(mean_gs_err, 3) if mean_gs_err is not None else None),
                 # 符号付き: 正 = 理想より上。講評の「高め / 低め」の根拠。
                 "mean_signed_error_deg": (
-                    round(mean_signed_gs_err, 3)
-                    if mean_signed_gs_err is not None
-                    else None
+                    round(mean_signed_gs_err, 3) if mean_signed_gs_err is not None else None
                 ),
                 "mean_abs_deviation_m": (
                     round(mean_gs_dev, 2) if mean_gs_dev is not None else None
                 ),
                 "mean_signed_deviation_m": (
-                    round(mean_signed_gs_dev, 2)
-                    if mean_signed_gs_dev is not None
-                    else None
+                    round(mean_signed_gs_dev, 2) if mean_signed_gs_dev is not None else None
                 ),
                 "glideslope_deg": analysis.glideslope_deg,
                 # 実際に飛んだ経路角 (接地点基準の測り方のときのみ)。
@@ -807,9 +786,7 @@ def grade_land_landing(
             scored("centerline", cl_score),
             weights["centerline"],
             {
-                "max_abs_deviation_m": (
-                    round(max_cl_dev, 2) if max_cl_dev is not None else None
-                ),
+                "max_abs_deviation_m": (round(max_cl_dev, 2) if max_cl_dev is not None else None),
                 "window_s": cl_window_s,
                 # 記録のみ。採点は pattern 側 (オーバーヘッドのみ)。
                 "overshoot_m": overshoot_m,
@@ -830,9 +807,7 @@ def grade_land_landing(
     for component in components:
         if component.score is None:
             component.evidence["unscored_reason"] = (
-                UNSCORED_BY_AIRFRAME_CLASS
-                if component.name in unscored
-                else UNSCORED_NOT_MEASURED
+                UNSCORED_BY_AIRFRAME_CLASS if component.name in unscored else UNSCORED_NOT_MEASURED
             )
 
     # 重みは正規化してから合成する。測れなかった項目・このクラスでは採点
@@ -843,9 +818,7 @@ def grade_land_landing(
     measured = [c for c in components if c.score is not None]
     weight_sum = sum(c.weight for c in measured)
     total: float | None = (
-        sum(c.score * c.weight for c in measured) / weight_sum
-        if weight_sum > 0
-        else None
+        sum(c.score * c.weight for c in measured) / weight_sum if weight_sum > 0 else None
     )
     # ...ただし正規化には限界がある。接地の瞬間しか記録に残っていない
     # 着陸では降下率しか測れず、滑らかに接地していれば「進入を誰も見て
@@ -896,7 +869,6 @@ def grade_land_landing(
     comment = _build_comment(
         grade,
         rate_label,
-
         speed_label if judged("touchdown_speed") else None,
         mean_gs_err if judged("glideslope") else None,
         mean_signed_gs_err if judged("glideslope") else None,
@@ -919,9 +891,7 @@ def grade_land_landing(
     metrics = {
         "touchdown_descent_rate_fpm": round(descent_fpm, 1),
         "touchdown_speed_ratio": round(speed_ratio, 3) if speed_ratio is not None else None,
-        "mean_glideslope_error_deg": (
-            round(mean_gs_err, 3) if mean_gs_err is not None else None
-        ),
+        "mean_glideslope_error_deg": (round(mean_gs_err, 3) if mean_gs_err is not None else None),
         "mean_signed_glideslope_error_deg": (
             round(mean_signed_gs_err, 3) if mean_signed_gs_err is not None else None
         ),
@@ -931,13 +901,9 @@ def grade_land_landing(
             else None
         ),
         "path_angle_spread_deg": (
-            round(gs_error.spread_deg, 3)
-            if gs_error and gs_error.spread_deg is not None
-            else None
+            round(gs_error.spread_deg, 3) if gs_error and gs_error.spread_deg is not None else None
         ),
-        "mean_glideslope_deviation_m": (
-            round(mean_gs_dev, 2) if mean_gs_dev is not None else None
-        ),
+        "mean_glideslope_deviation_m": (round(mean_gs_dev, 2) if mean_gs_dev is not None else None),
         "mean_signed_glideslope_deviation_m": (
             round(mean_signed_gs_dev, 2) if mean_signed_gs_dev is not None else None
         ),
@@ -989,9 +955,7 @@ def grade_land_landing(
         ),
     }
     if pattern_component is not None:
-        metrics.update(
-            {f"pattern_{k}": v for k, v in pattern_values.items()}
-        )
+        metrics.update({f"pattern_{k}": v for k, v in pattern_values.items()})
     return LandGradeResult(
         grade=grade,
         score=round(total, 1) if total is not None else None,
@@ -1029,11 +993,7 @@ def _unscored_note(
     測っていないものに判定を下すことになる --- どちらも読み手を誤らせる
     ので、外したことを本文に書く。
     """
-    missing = [
-        c.name
-        for c in components
-        if c.score is None and c.name not in unscored
-    ]
+    missing = [c.name for c in components if c.score is None and c.name not in unscored]
     excluded = [c.name for c in components if c.score is None and c.name in unscored]
     notes: list[str] = []
     if excluded:
@@ -1045,8 +1005,7 @@ def _unscored_note(
             if angle is not None:
                 detail = f"（実測の進入経路角は {angle:.1f}°）"
         notes.append(
-            f"{klass}に当てはめられる基準が無いため、{names}は測定のみで"
-            f"採点していません{detail}。"
+            f"{klass}に当てはめられる基準が無いため、{names}は測定のみで採点していません{detail}。"
         )
     if missing:
         names = "・".join(_COMPONENT_JA.get(n, n) for n in missing)
@@ -1113,17 +1072,12 @@ def _build_comment(
         if mean_gs_err <= gs_good_deg:
             # 良好なものを「高め」「低め」と述べると、直すところが無い
             # 相手に修正指示を出すことになる。
-            parts.append(
-                f"閾値までのグライドスロープは安定していた"
-                f"（平均誤差 {mean_gs_err:.2f}°）"
-            )
+            parts.append(f"閾値までのグライドスロープは安定していた（平均誤差 {mean_gs_err:.2f}°）")
         elif abs(mean_signed_gs_err) < mean_gs_err / 2:
             # ばらつきが支配的。この状態で「高め」「低め」と言い切ると、
             # 実際にやるべき修正 (安定させること) を取り違えさせる。
             spread = gs_error.spread_deg if gs_error else None
-            detail = (
-                f"±{spread:.2f}°" if spread is not None else f"平均誤差 {mean_gs_err:.2f}°"
-            )
+            detail = f"±{spread:.2f}°" if spread is not None else f"平均誤差 {mean_gs_err:.2f}°"
             parts.append(f"進入経路角が安定しなかった（{detail}）")
         elif gs_method == "path-angle":
             # 滑走路が解決できていないので基準は接地点。フレアで浮いた分だけ
@@ -1179,8 +1133,7 @@ def _pattern_comment_parts(pattern: dict[str, Any] | None) -> list[str]:
     overshoot = pattern.get("overshoot_m") or 0.0
     if overshoot > 60.0:
         parts.append(
-            f"旋回明けでセンターラインを {overshoot * M_TO_FT:.0f} ft "
-            "オーバーシュートした"
+            f"旋回明けでセンターラインを {overshoot * M_TO_FT:.0f} ft オーバーシュートした"
         )
     elif rollout is not None and rollout > 150.0:
         parts.append(
@@ -1190,19 +1143,12 @@ def _pattern_comment_parts(pattern: dict[str, Any] | None) -> list[str]:
     if pattern.get("downwind_judged"):
         course_error = pattern.get("downwind_course_error_deg")
         if course_error is not None and course_error > 12.0:
-            parts.append(
-                f"ダウンウィンドが滑走路と平行でなかった（方位差 {course_error:.0f}°）"
-            )
+            parts.append(f"ダウンウィンドが滑走路と平行でなかった（方位差 {course_error:.0f}°）")
         spread = pattern.get("downwind_altitude_spread_m")
         if spread is not None and spread > 60.0:
-            parts.append(
-                f"ダウンウィンドで高度が {spread * M_TO_FT:.0f} ft ふらついた"
-            )
+            parts.append(f"ダウンウィンドで高度が {spread * M_TO_FT:.0f} ft ふらついた")
     if pattern.get("break_judged"):
         spread = pattern.get("break_altitude_spread_m")
         if spread is not None and spread > 45.0:
-            parts.append(
-                f"ブレイク中に高度が {spread * M_TO_FT:.0f} ft 動いた"
-                "（水平旋回が基本）"
-            )
+            parts.append(f"ブレイク中に高度が {spread * M_TO_FT:.0f} ft 動いた（水平旋回が基本）")
     return parts
