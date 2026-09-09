@@ -3,239 +3,216 @@
 [![CI](https://github.com/MasterMk2/DCSLandingTeacher/actions/workflows/ci.yml/badge.svg)](https://github.com/MasterMk2/DCSLandingTeacher/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-DCS World Dedicated Server 上で行われた着陸（陸上空港）／着艦（空母）を、
-Tacview の ACMI データストリームから記録・評価し、ブラウザで振り返りできるようにするツールです。
+DCS World Dedicated Server で発生した陸上空港への着陸と空母への着艦を、
+Tacview の ACMI データストリームから記録・評価し、ブラウザで振り返るためのツールです。
 
-- Tacview Realtime Telemetry（ACMI 2.2 Text / TCP 31010）の受信・解析
-- **ACMI ファイルインポート**: 過去の Tacview 記録（.acmi / .acmi.txt / .acmi.zip）から着陸記録を一括生成
-- 着陸／着艦イベントの自動検出（タッチダウン・ボルター・タッチアンドゴーの識別）
-- 米海軍式 LSO グレーディングによる空母着艦の自動評価（OK / OK- / (OK) / _NO_GRADE_ / CUT ＋ファクター）
+- Tacview Realtime Telemetry（ACMI 2.2 Text / TCP）の受信・解析（接続先は Tacview の設定に合わせて指定）
+- **ACMI ファイルインポート**：過去の Tacview 記録（`.acmi` / `.acmi.txt` / `.acmi.zip`）から着陸記録を一括生成
+- 着陸・着艦イベントの自動検出（タッチダウン・ボルター・タッチアンドゴーを識別）
+- 米海軍式 LSO グレーディングによる空母着艦の自動評価（`OK` / `OK-` / `(OK)` / `_NO_GRADE_` / `CUT` + ファクター）
 - 陸上着陸の簡易評価（グライドスロープ偏差・センターライン偏差・接地降下率・速度 → A〜E 評点）
 - Web UI での閲覧
   - 着陸履歴ダッシュボード（プレイヤー / 機体 / 場所 / グレード等でフィルタ）
-  - **GCA（PAR）スコープ風ビュー**: 最終進入の方位角・仰角軌跡をレーダースコープ風に描画
+  - **GCA（PAR）スコープ風ビュー**：最終進入の方位角・仰角軌跡をレーダースコープ風に描画
   - トップダウン軌跡ビュー、時系列チャート（偏差・速度・AOA・降下率）
   - 着陸検出のリアルタイム通知（WebSocket）
   - CSV エクスポート
 
-詳細な要件は [`plans/requirements.md`](plans/requirements.md)、実装構成は [`docs/architecture.md`](docs/architecture.md) を参照してください。
+要件の詳細は [`plans/requirements.md`](./plans/requirements.md)、実装構成は [`docs/architecture.md`](./docs/architecture.md) を参照してください。
 
 ## スクリーンショット
 
 <!-- TODO: 公開前に実際のスクリーンショットを差し替えてください -->
 
 | ダッシュボード | GCA スコープ | 時系列チャート |
-|:---:|:---:|:---:|
+| :---: | :---: | :---: |
 | ![dashboard](docs/images/dashboard.png) | ![gca-scope](docs/images/gca-scope.png) | ![timeseries](docs/images/timeseries.png) |
 
 ## システム構成（概要）
 
 ```mermaid
 flowchart LR
-    DCS[DCS Dedicated Server + Tacview] -- "ACMI TCP 31010" --> APP["FastAPI コンテナ<br/>(ingest → detect → grade)"]
-    APP --> DB[(SQLite<br/>Docker volume)]
-    APP -- "REST + WebSocket (/api)" --> UI[React Frontend<br/>FastAPI が静的配信]
+    DCS[DCS Dedicated Server + Tacview] -- "ACMI TCP" --> API["FastAPI<br/>(ingest → detect → grade)"]
+    API --> DB[(PostgreSQL<br/>Docker volume)]
+    PROXY[Reverse proxy] --> UI[React Frontend]
+    PROXY --> API
 ```
 
-本番（Docker）では **フロントエンドをビルドして FastAPI が静的配信する 1 コンテナ構成**が既定です。
-開発時は Vite dev server（プロキシ付き）とバックエンドを分けて起動します。
+本番環境では、リバースプロキシ配下でフロントエンドと FastAPI を別コンテナとして起動します。
+開発・検証環境でも Docker Compose を使用します。
 
-## セットアップ
+## 本番環境
 
-### パターン A: Docker Compose（推奨）
-
-必要なもの: Docker Desktop（Windows / macOS）または Docker Engine + Compose v2（Linux）。
+本番ホストでは、Docker Engine と Docker Compose を利用します。リポジトリルートで `.env` を作成し、少なくとも `DLT_POSTGRES_PASSWORD` には空でない値を設定してください。Tacview を別ホストで動かす場合は、`DLT_TACVIEW_HOST` と `DLT_TACVIEW_PORT` も変更します。
 
 ```bash
-cp .env.example .env        # Tacview のホスト/ポート等を必要に応じて編集
+# 初回のみ: 本番用の設定ファイルを作成して編集する
+cp .env.example .env
+${EDITOR:-vi} .env
+
+# Compose の設定を検証してから、バックグラウンドでビルド・起動する
+docker compose config --quiet
+docker compose up --build -d
+
+# 起動状態と API のヘルスチェックを確認する
+docker compose ps
+curl -fsS http://localhost:8000/api/health
+```
+
+`.env.example` の `DLT_PORT=8000` を変更した場合は、ヘルスチェックの URL も同じポート番号に変更してください。起動ログは `docker compose logs -f`、停止は `docker compose down` で確認・実行できます。`docker compose down` では PostgreSQL の名前付きボリューム `postgres_data` は削除されません。
+
+## 開発環境
+
+### 必須環境
+
+- Docker Desktop
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 20 以上
+
+### セットアップ
+
+リポジトリルートで、次の順に実行します。
+
+```powershell
+# 開発・検証用の依存関係を取得
+cd backend
+uv sync
+cd ..\frontend
+npm ci
+
+cd ..
+# Compose 用の設定を作成
+cp .env.example .env
+# DLT_POSTGRES_PASSWORD に空でないパスワードを設定し、Tacview のホスト/ポートを必要に応じて編集
 docker compose up --build
 ```
 
-- ブラウザで `http://localhost:8000` を開くと Web UI が表示されます
-- SQLite データは名前付きボリューム `dlt-data`（コンテナ内 `/data`）に永続化されます
-- `config/grading.yaml` は読み取り専用マウントされるため、評価閾値を編集して
-  再評価 API を叩けば即座に反映されます
+- `.env.example` をコピーした設定では、ブラウザで `http://localhost:8000` を開くと Web UI が表示されます。`DLT_PORT` を設定しない場合、Compose 側の既定値は `8080` です
+- PostgreSQL データは名前付きボリューム `postgres_data` に永続化されます
+- `config/grading.yaml` は読み取り専用でマウントされます。評価閾値を編集した後に再評価 API を呼び出すと、変更がすぐに反映されます
 - Linux では `host.docker.internal` が `extra_hosts` 設定によりホスト OS を指します
   （DCS + Tacview が同一ホストで動いている場合の既定値）
-
-### パターン B: Windows（ネイティブ）
-
-必要なもの: Python 3.11 以上、Node.js 20 以上（フロントエンドをビルドする場合）。
-
-```powershell
-# バックエンド
-cd backend
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-copy ..\.env.example ..\.env   # 必要に応じて編集
-uvicorn app.api.main:create_app --factory --port 8000
-```
-
-```powershell
-# フロントエンド（別ターミナル。開発時は Vite dev server を利用）
-cd frontend
-npm ci
-npm run dev     # http://localhost:5173 （/api をバックエンドへプロキシ）
-```
-
-本番相当でバックエンドに静的配信させる場合は、先に `npm run build` してから
-リポジトリルートで `uvicorn` を起動してください（`frontend/dist` が存在すれば自動で配信します）。
-
-### パターン C: Linux（ネイティブ）
-
-```bash
-# バックエンド
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-cp ../.env.example ../.env   # 必要に応じて編集
-uvicorn app.api.main:create_app --factory --port 8000
-
-# フロントエンド（別ターミナル）
-cd frontend && npm ci && npm run dev
-```
-
-動作確認: `http://localhost:8000/api/health` にアクセスして `"status": "ok"` が返ることを確認してください。
 
 ## Tacview 側の設定
 
 1. DCS World に Tacview アドオンを導入する
-2. Tacview の設定（`Tacview.ini` または DCS 内メニュー）で
-   **Realtime Telemetry 出力を有効化**する
-   - 既定では `ACMI 2.2 Text` 形式で **TCP ポート 31010** をリッスンします
-   - パスワードを設定した場合は `.env` の `DLT_TACVIEW_PASSWORD` にも同じ値を設定してください
-3. 本ツール側の `.env` で接続先を合わせる
+2. Tacview の設定（`Tacview.ini` または DCS 内メニュー）で、**Realtime Telemetry 出力を有効化**する
+   - 使用する TCP ポートを確認します。Tacview 側の Real-Time Telemetry TCP Port と本ツールの設定値を一致させてください
+   - パスワードを設定している場合は `.env` の `DLT_TACVIEW_PASSWORD` にも同じ値を設定してください
+3. 本ツールの `.env` で接続先を設定する
 
 | 変数 | 既定値 | 説明 |
-|---|---|---|
-| `DLT_TACVIEW_HOST` | `127.0.0.1` | Tacview Realtime Telemetry のホスト |
-| `DLT_TACVIEW_PORT` | `31010` | 同ポート |
+| --- | --- | --- |
+| `DLT_TACVIEW_HOST` | `host.docker.internal` | Tacview Realtime Telemetry のホスト |
+| `DLT_TACVIEW_PORT` | `42674` | Tacview 側の Real-Time Telemetry TCP Port と一致させる |
 | `DLT_TACVIEW_CLIENT_NAME` | `DCSLandingTeacher` | ハンドシェイクで通告するクライアント名 |
 | `DLT_TACVIEW_PASSWORD` | （空） | Telemetry 保護時のパスワード |
 | `DLT_ACMI_ENABLED` | `true` | `false` で ACMI 受信を停止（API 単体運用向け） |
-| `DLT_MIGRATIONS_ON_STARTUP` | `true` | 起動時に Alembic マイグレーションを自動適用。`false` で従来の create_all に戻す（開発用） |
 | `DLT_AUTH_TOKEN` | （空） | 簡易トークン認証の共有トークン。空なら認証なし（既定）。詳細は「簡易トークン認証」の節を参照 |
 | `DLT_IMPORT_MAX_UPLOAD_MB` | `200` | ACMI ファイルインポートのアップロードサイズ上限（MB）。詳細は「ACMI ファイルのインポート」の節を参照 |
 
 ### データベースマイグレーション
 
-スキーマ管理には Alembic を使用しています（Issue #7）。アプリ起動時に未適用の
-マイグレーションが自動で適用され、空の DB からは全スキーマが作成されます。
-旧バージョン（create_all 時代）で作成した DB も自動検出してベースラインに
-スタンプし、以降のマイグレーションが適用されるため、そのまま起動するだけで移行できます。
+スキーマ管理には、Alembic を使用する `migration-job` を利用しています。
 
-手動操作は `backend/` ディレクトリで:
+Compose は、PostgreSQL の起動後に `migration-job` を一度実行してから API を起動します。未適用のマイグレーションのみを手動で適用する場合は、リポジトリルートで次を実行します。
 
 ```bash
-alembic current          # 現在のリビジョン表示
-alembic upgrade head     # 未適用マイグレーションの適用
+docker compose run --rm migration-job  # 未適用マイグレーションの適用
 ```
 
 詳細な環境変数一覧は [`.env.example`](.env.example) を参照してください。
-接続は自動再接続（指数バックオフ）に対応しています。
+
+Tacview との接続には、指数バックオフによる自動再接続を使用します。
 
 ## API 概要
 
-すべての REST エンドポイントは `/api` プレフィックスを持ちます
-（OpenAPI スキーマ: `http://localhost:8000/docs`）。
+新規クライアントは REST API の `/api/v1` プレフィックスを使用します。OpenAPI スキーマは `http://localhost:<DLT_PORT>/docs` で確認できます。
 
-### 簡易トークン認証（Issue #8）
+### 簡易トークン認証
 
-`.env` の `DLT_AUTH_TOKEN` にトークンを設定すると、Web UI / API へのアクセスに
-共有トークン認証がかかります（**既定は空＝認証なし**で、従来どおり動作します）。
+`.env` の `DLT_AUTH_TOKEN` にトークンを設定すると、Web UI と API へのアクセスに共有トークン認証を適用できます。**既定値は空で、認証なし**のまま従来どおり動作します。
 
-- `/api` 配下の REST エンドポイントは `Authorization: Bearer <token>` または
-  `X-Auth-Token` ヘッダを要求します（未提示は 401、誤りは 403）
-- WebSocket（`/api/ws/landings`）はブラウザからヘッダを付けられないため
-  `?token=<token>` クエリパラメータで認証します。不正トークンは接続拒否
-- `/api/health`（死活監視用）と SPA 静的配信は認証対象外です
+- `/api/v1` 配下の REST エンドポイントには、`Authorization: Bearer <token>` または `X-Auth-Token` ヘッダが必要です（未指定は 401、誤りは 403）
+- WebSocket（`/api/v1/ws/landings`）はブラウザからヘッダを付与できないため、`?token=<token>` クエリパラメータで認証します。不正なトークンでは接続できません
+- `/api/health`（死活監視用）と Web UI は認証対象外です
 - トークン比較は定数時間比較（`secrets.compare_digest`）を使用しています
-- Web UI は 401/403 を検出するとトークン入力モーダルを表示し、入力した
-  トークンを localStorage に保存します。ナビバーの「認証設定」ボタンで
-  消去・再入力できます
+- Web UI は 401 または 403 を受け取るとトークン入力モーダルを表示し、入力されたトークンを localStorage に保存します。ナビバーの「認証設定」から消去・再入力できます
 
 | メソッド | パス | 説明 |
-|---|---|---|
-| GET | `/api/health` | 死活監視・ACMI 接続状態 |
-| GET | `/api/landings` | 着陸履歴一覧（`player` / `airframe` / `venue` / `kind` / `grade` / `outcome` / `date_from` / `date_to` / `limit` / `offset` でフィルタ・ページング） |
-| GET | `/api/landings/{id}` | 個別着陸の詳細（グレード、ファクター、進入軌跡サンプル、接地状態） |
-| POST | `/api/landings/{id}/regrade` | 保存済み進入データに対し現在の閾値で再評価 |
-| POST | `/api/import` | ACMI ファイルのインポート（multipart、バックグラウンド処理。ジョブ ID を即時返却） |
-| GET | `/api/imports` | インポートジョブの一覧（新しい順） |
-| GET | `/api/imports/{id}` | インポートジョブの進捗・結果サマリ |
-| **WebSocket** | `/api/ws/landings` | 着陸検出のリアルタイム通知＋インポート完了通知（`ping` 送信で `pong` 応答） |
+| --- | --- | --- |
+| GET | `/api/v1/health` | 死活監視・ACMI 接続状態（`/api/health` も互換用に利用可） |
+| GET | `/api/v1/landings` | 着陸履歴一覧（`player` / `airframe` / `venue` / `kind` / `grade` / `outcome` / `date_from` / `date_to` / `limit` / `offset` でフィルタ・ページング） |
+| GET | `/api/v1/landings/{id}` | 個別着陸の詳細（グレード、ファクター、進入軌跡サンプル、接地状態） |
+| POST | `/api/v1/landings/{id}/regrade` | 保存済み進入データに対し現在の閾値で再評価 |
+| POST | `/api/v1/import` | ACMI ファイルのインポート（multipart、バックグラウンド処理。ジョブ ID を即時返却） |
+| GET | `/api/v1/imports` | インポートジョブの一覧（新しい順） |
+| GET | `/api/v1/imports/{id}` | インポートジョブの進捗・結果サマリ |
+| **WebSocket** | `/api/v1/ws/landings` | 着陸検出のリアルタイム通知とインポート完了通知（`ping` 送信で `pong` 応答） |
 
 ## ACMI ファイルのインポート（過去の Tacview 記録から着陸記録を生成）
 
-リアルタイム受信を設定していない過去のフライトも、Tacview のローカル記録から
-着陸記録を生成できます。
+リアルタイム受信を設定していない場合でも、Tacview のローカル記録から過去のフライトの着陸記録を生成できます。
 
-### ユースケース: Tacview のローカル記録フォルダから投入する
+### ユースケース: Tacview のローカル記録フォルダからインポートする
 
-1. Tacview はフライトごとに記録を保存しています（既定では
-   `%USERPROFILE%\Documents\Tacview\` 以下。DCS 専用フォルダを設定している場合はその配下）。
-   拡張子は `.acmi`（zip 圧縮されている場合あり）または `.acmi.zip` です
-2. Web UI のダッシュボードで「**ACMI ファイルをインポート**」ボタンを押し、
-   ファイルをドラッグ＆ドロップ（またはクリックして選択）します
-3. アップロード → 解析はバックグラウンドで実行され、プログレス表示が
-   「待機中 → 解析中 → 完了」と遷移します
-4. 完了すると「検出 N 件・重複スキップ M 件」のサマリが表示され、
-   検出された着陸はリアルタイム受信と同じく一覧・詳細ビューに反映されます
-   （WebSocket 通知も共通です）
+1. Tacview はフライトごとに記録を保存します。既定の保存先は `%USERPROFILE%\Documents\Tacview\` 以下です。DCS 専用フォルダを設定している場合は、その配下を確認してください。拡張子は `.acmi`（zip 圧縮されている場合があります）または `.acmi.zip` です。
+2. Web UI のダッシュボードで「**ACMI ファイルをインポート**」ボタンを押し、ファイルをドラッグ＆ドロップ（またはクリックして選択）します
+3. アップロードと解析はバックグラウンドで実行されます。進行状況は「待機中 → 解析中 → 完了」と表示されます
+4. 完了すると「検出 N 件・重複スキップ M 件」のサマリが表示され、検出された着陸はリアルタイム受信と同じく一覧・詳細ビューに反映されます（WebSocket 通知も共通です）
 
 大量のファイルをまとめて処理する場合は API を直接呼び出せます:
 
 ```bash
-curl -X POST -H "X-Auth-Token: <token>" \
-     -F "file=@20240101_多発.acmi" http://localhost:8000/api/import
+curl -X POST \
+     -H "X-Auth-Token: <token>" \
+     -F "file=@20240101_多発.acmi" \
+     http://localhost:<DLT_PORT>/api/v1/import
 # => {"id":"<job_id>", ...}
-curl -H "X-Auth-Token: <token>" http://localhost:8000/api/imports/<job_id>
+curl -H "X-Auth-Token: <token>" http://localhost:<DLT_PORT>/api/v1/imports/<job_id>
 ```
 
 ### 重複防止
 
-同じファイルを何度インポートしても着陸レコードが二重登録されないよう、
-各タッチダウンについて **ACMI ヘッダの `ReferenceTime` ＋ タッチダウン時刻 ＋
-機体オブジェクト ID** の組み合わせで既存レコードをチェックし、一致したものは
-スキップしてサマリに報告します。
+同じファイルを何度インポートしても、着陸レコードは二重登録されません。各タッチダウンについて、**ACMI ヘッダの `ReferenceTime`、タッチダウン時刻、機体オブジェクト ID** の組み合わせを既存レコードと照合します。一致したものはスキップし、サマリに報告します。
 
 ### 制限
 
-- 受付拡張子は `.acmi` / `.acmi.txt` / `.acmi.zip`（中身が zip 圧縮された
-  `.acmi` も自動判別して展開します）
-- アップロードサイズ上限は既定 200MB（環境変数 `DLT_IMPORT_MAX_UPLOAD_MB` で変更可）。
-  超過したアップロードは HTTP 413 で拒否されます
-- インポートジョブの一覧はメモリ上に保持されるため、サーバー再起動で消えます
-  （確定した着陸レコード自体は DB に残ります）
-- 7z コンテナ（`.acmi.7z`）は未対応です。zip に変換してご利用ください
+- 受け付ける拡張子は `.acmi` / `.acmi.txt` / `.acmi.zip` です。zip 圧縮された `.acmi` も自動判別して展開します。
 
-> WebSocket のパスは **`/api/ws/landings`** に統一されています（ルーター共通の `/api`
-> プレフィックス付き）。フロントエンドもこのパスを使用しています。
+- アップロードサイズ上限は既定 200MB（環境変数 `DLT_IMPORT_MAX_UPLOAD_MB` で変更可）。超過したアップロードは HTTP 413 で拒否されます。
+- インポートジョブの一覧はメモリ上に保持されるため、サーバー再起動で消えます（確定した着陸レコード自体は DB に残ります）。
+- 7z コンテナ（`.acmi.7z`）には対応していません。zip に変換してからインポートしてください。
+
+> [!NOTE]
+>
+> WebSocket のパスは **`/api/v1/ws/landings`** です。フロントエンドもこのパスを使用しています。
 
 ## 評価方式
 
 ### 空母着艦: LSO グレード
 
-米海軍式の LSO グレーディングに基づき、FLOLS 想定のグライドスロープ（3.5°、ランプ基準）と
-センターラインからの偏差から **OK / OK- / (OK) / _NO_GRADE_ / CUT** を自動付与します。
-加えて ARCON / AOC / AOS / FAST / SLOW / HIGH / LOW / OFFLINE / BOLTER 等の
-ファクターを検出し、根拠データとともに記録します。
+米海軍式の LSO グレーディングに基づき、FLOLS を想定したグライドスロープ（ランプ基準で 3.5°）とセンターラインからの偏差を評価します。評価結果として **OK / OK- / (OK) / _NO_GRADE_ / CUT** を自動で付与します。
+
+さらに、次のファクターを検出し、根拠データとともに記録します。
+
+- `ARCON` / `AOC` / `AOS` / `FAST` / `SLOW` / `HIGH` / `LOW` / `OFFLINE` / `BOLTER`
 
 ### 陸上着陸: 簡易評点
 
-グライドスロープ偏差（3°想定）・センターライン保持・接地降下率（fpm）・接地速度
-（ファイナル終盤の保持速度に対する比）をそれぞれ 0〜100 点で採点し、重み付け合成で
-**A〜E** を付与します。オーバーヘッドパターンを実際に飛んでいた場合（軌跡から
-ダウンウィンド脚が取れた場合）は、パターン自体も採点対象に加わります。
+陸上着陸では、次の要素をそれぞれ 0〜100 点で採点します。
 
-**測れなかった項目は採点しません。** 記録が短くてグライドスロープを測れない、
-ヘリコプターなので接地速度比に意味が無い、といった項目は素点を持たず（API では
-`score: null`）、重みごと合成から外れます。中立点を置くと「測ったうえで並」と
-読まれてしまうためで、詳細画面には未評価の項目とその理由が表示されます。
-採点できた重みが `min_measured_weight` に届かない着陸（進入がほとんど記録されて
-いないもの）には成績を付けず、`grade` / `score` は `null` になります。
+- グライドスロープ偏差（3°想定）
+- センターライン保持
+- 接地降下率（fpm）
+- 接地速度（ファイナル終盤の保持速度に対する比）
+
+重み付けして合成した結果に **A〜E** を付与します。実際にオーバーヘッドパターンを飛行しており、軌跡からダウンウィンド脚を取得できた場合は、パターンも採点対象に加わります。
+
+**測定できなかった項目は採点しません。** たとえば、記録が短くグライドスロープを測定できない場合や、ヘリコプターで接地速度比に意味がない場合は、素点を持ちません（API では `score: null`）。これらの項目は重みごと合成から除外されます。
+
+中立点を置くと「測定したうえで平均的だった」と受け取られるためです。詳細画面には、未評価の項目とその理由を表示します。
+採点対象となった項目の重みが `min_measured_weight` に届かない着陸、つまり進入がほとんど記録されていない場合には成績を付けません。`grade` / `score` は `null` になります。
 
 ### 滑走路ジオメトリと対応マップ
 
@@ -348,7 +325,7 @@ geometry:
 
 detection:
   wow_agl_threshold_m: 3.0      # WOW（接地）判定の AGL 閾値
-  full_stop_dwell_s: 15.0       # この時間滞地したら full-stop
+  full_stop_dwell_s: 15.0       # この時間、停止状態が続いたら full-stop
 
 land_grading:
   weights:                      # 各要素の重み（合計 1.0）
@@ -365,8 +342,7 @@ land_grading:
     ...
 ```
 
-編集後は該当着陸に `POST /api/landings/{id}/regrade` を送ると、保存済みの
-進入データに対して新しい閾値で再評価されます（生データは FR-7 により DB に保存されています）。
+編集後、該当する着陸に `POST /api/v1/landings/{id}/regrade` を送ると、保存済みの進入データを新しい閾値で再評価できます。
 
 ## 開発
 
@@ -374,17 +350,15 @@ land_grading:
 
 ```bash
 # バックエンド
-cd backend && pip install -e ".[dev]" && ruff check . && pytest -q
+cd backend && uv sync --frozen --group dev --no-install-project && uv run ruff check . && uv run pytest -q
 
 # フロントエンド
 cd frontend && npm ci && npm run build && npm test
 ```
 
-CI（GitHub Actions）が push / PR ごとに上記と同等のチェックを実行します（`.github/workflows/ci.yml`）。
-
 ## ライセンス
 
-MIT License。詳細は [LICENSE](LICENSE) を参照してください。
+MIT License。詳細は [LICENSE](./LICENSE) を参照してください。
 
 - 本プロジェクトは Tacview 公式ドキュメントに基づく ACMI 形式の独自実装であり、
   Tacview 本体・SDK を同梱していません
