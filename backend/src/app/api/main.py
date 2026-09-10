@@ -338,7 +338,7 @@ def _build_runway_provider(settings: Settings) -> RunwayProvider | None:
         if seed_dir is None:
             logger.info("DCSSB not configured; land grading uses estimated geometry")
             return None
-        logger.info("DCSSB not configured; using shipped runway geometry (%s)", seed_dir)
+        logger.info("DCSSB not configured; using configured runway geometry (%s)", seed_dir)
         return RunwayProvider(None, settings.runway_cache_dir, seed_dir=seed_dir)
     client = DcssbClient(
         settings.dcssb_base_url,
@@ -350,6 +350,7 @@ def _build_runway_provider(settings: Settings) -> RunwayProvider | None:
     logger.info("DCSSB runway source: %s", settings.dcssb_base_url)
     return RunwayProvider(
         client,
+        settings.runway_cache_dir,
         server_name=settings.dcssb_server_name,
         seed_dir=seed_dir,
     )
