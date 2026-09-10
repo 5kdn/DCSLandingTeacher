@@ -67,7 +67,8 @@ docker compose ps
 curl -fsS http://localhost:8000/api/health
 ```
 
-`.env.example` の `DLT_PORT=8000` を変更した場合は、ヘルスチェックの URL も同じポート番号に変更してください。起動ログは `docker compose logs -f`、停止は `docker compose down` で確認・実行できます。`docker compose down` では PostgreSQL の名前付きボリューム `postgres_data` は削除されません。
+> [!NOTE]
+> `.env.example` の `DLT_PORT=8000` を変更した場合は、上の `curl` コマンドとブラウザで開く URL のポート番号も同じ値にしてください。起動ログは `docker compose logs -f`、停止は `docker compose down` で確認・実行できます。`docker compose down` では PostgreSQL の名前付きボリューム `postgres_data` は削除されません。
 
 ## 開発環境
 

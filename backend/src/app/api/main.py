@@ -350,7 +350,6 @@ def _build_runway_provider(settings: Settings) -> RunwayProvider | None:
     logger.info("DCSSB runway source: %s", settings.dcssb_base_url)
     return RunwayProvider(
         client,
-        settings.runway_cache_dir,
         server_name=settings.dcssb_server_name,
         seed_dir=seed_dir,
     )
