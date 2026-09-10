@@ -68,7 +68,11 @@ curl -fsS http://localhost:8000/api/health
 ```
 
 > [!NOTE]
-> `.env.example` の `DLT_PORT=8000` を変更した場合は、上の `curl` コマンドとブラウザで開く URL のポート番号も同じ値にしてください。起動ログは `docker compose logs -f`、停止は `docker compose down` で確認・実行できます。`docker compose down` では PostgreSQL の名前付きボリューム `postgres_data` は削除されません。
+> `.env` の `DLT_PORT` を変更した場合は、上の `curl` コマンドとブラウザで開く URL のポート番号も同じ値にしてください。
+>
+> 起動ログは `docker compose logs -f`、停止は `docker compose down` で確認・実行できます。
+>
+> `docker compose down` では PostgreSQL の名前付きボリューム `postgres_data` は削除されません。
 
 ## 開発環境
 
@@ -96,11 +100,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- `.env.example` をコピーした設定では、ブラウザで `http://localhost:8000` を開くと Web UI が表示されます。`DLT_PORT` を設定しない場合、Compose 側の既定値は `8080` です
+- `.env.example` をコピーした設定では、ブラウザで `http://localhost:8080` を開くと Web UI が表示されます。`DLT_PORT` を設定しない場合、Compose 側の既定値は `8080` です
 - PostgreSQL データは名前付きボリューム `postgres_data` に永続化されます
 - `config/grading.yaml` は読み取り専用でマウントされます。評価閾値を編集した後に再評価 API を呼び出すと、変更がすぐに反映されます
-- Linux では `host.docker.internal` が `extra_hosts` 設定によりホスト OS を指します
-  （DCS + Tacview が同一ホストで動いている場合の既定値）
+- Linux では `host.docker.internal` が `extra_hosts` 設定によりホスト OS を指します（DCS + Tacview が同一ホストで動いている場合の既定値）
 
 ## Tacview 側の設定
 
@@ -165,12 +168,18 @@ Tacview との接続には、指数バックオフによる自動再接続を使
 
 ### ユースケース: Tacview のローカル記録フォルダからインポートする
 
-1. Tacview はフライトごとに記録を保存します。既定の保存先は `%USERPROFILE%\Documents\Tacview\` 以下です。DCS 専用フォルダを設定している場合は、その配下を確認してください。拡張子は `.acmi`（zip 圧縮されている場合があります）または `.acmi.zip` です。
-2. Web UI のダッシュボードで「**ACMI ファイルをインポート**」ボタンを押し、ファイルをドラッグ＆ドロップ（またはクリックして選択）します
-3. アップロードと解析はバックグラウンドで実行されます。進行状況は「待機中 → 解析中 → 完了」と表示されます
-4. 完了すると「検出 N 件・重複スキップ M 件」のサマリが表示され、検出された着陸はリアルタイム受信と同じく一覧・詳細ビューに反映されます（WebSocket 通知も共通です）
+> [!NOTE]
+> Tacview はフライトごとに記録を保存します。既定の保存先は `%USERPROFILE%\Documents\Tacview\` 以下です。
+>
+> 拡張子は `.acmi`（zip 圧縮されている場合があります）または `.acmi.zip` です。
+>
+> DCS 専用フォルダを設定している場合は、その配下を確認してください。
 
-大量のファイルをまとめて処理する場合は API を直接呼び出せます:
+1. Web UI のダッシュボードで「ACMI ファイルをインポート」ボタンを押し、ファイルをドラッグ＆ドロップ（またはクリックして選択）します
+2. アップロードと解析はバックグラウンドで実行されます。
+3. 完了するとインポート結果が表示され、検出された着陸はリアルタイム受信と同じく一覧・詳細ビューに反映されます（WebSocket 通知も共通です）
+
+大量のファイルをまとめて処理する場合は API を直接呼び出すことができます。
 
 ```bash
 curl -X POST \
@@ -181,27 +190,25 @@ curl -X POST \
 curl -H "X-Auth-Token: <token>" http://localhost:<DLT_PORT>/api/v1/imports/<job_id>
 ```
 
-### 重複防止
-
-同じファイルを何度インポートしても、着陸レコードは二重登録されません。各タッチダウンについて、**ACMI ヘッダの `ReferenceTime`、タッチダウン時刻、機体オブジェクト ID** の組み合わせを既存レコードと照合します。一致したものはスキップし、サマリに報告します。
-
-### 制限
-
-- 受け付ける拡張子は `.acmi` / `.acmi.txt` / `.acmi.zip` です。zip 圧縮された `.acmi` も自動判別して展開します。
-
-- アップロードサイズ上限は既定 200MB（環境変数 `DLT_IMPORT_MAX_UPLOAD_MB` で変更可）。超過したアップロードは HTTP 413 で拒否されます。
-- インポートジョブの一覧はメモリ上に保持されるため、サーバー再起動で消えます（確定した着陸レコード自体は DB に残ります）。
-- 7z コンテナ（`.acmi.7z`）には対応していません。zip に変換してからインポートしてください。
+> [!NOTE]
+> 同じファイルを何度インポートしても、着陸レコードは二重登録されません。
+> 各タッチダウンについて、ACMI ヘッダの `ReferenceTime`、`タッチダウン時刻`、`機体オブジェクト ID` の組み合わせを既存レコードと照合します。
+> 一致したものはスキップし、インポート結果に報告します。
 
 > [!NOTE]
->
-> WebSocket のパスは **`/api/v1/ws/landings`** です。フロントエンドもこのパスを使用しています。
+> - 受け付ける拡張子は `.acmi` / `.acmi.txt` / `.acmi.zip` です。zip 圧縮された `.acmi` も自動判別して展開します。
+> - アップロードサイズ上限は既定 200MB（環境変数 `DLT_IMPORT_MAX_UPLOAD_MB` で変更可）。超過したアップロードは HTTP 413 で拒否されます。
+> - インポートジョブの一覧はメモリ上で保持されるため、サーバー再起動で消えます（確定した着陸レコード自体は DB に残ります）。
+> - 7z コンテナ（`.acmi.7z`）には対応していません。zip に変換してからインポートしてください。
+
+> [!NOTE]
+> WebSocket のパスは `/api/v1/ws/landings` です。フロントエンドもこのパスを使用しています。
 
 ## 評価方式
 
 ### 空母着艦: LSO グレード
 
-米海軍式の LSO グレーディングに基づき、FLOLS を想定したグライドスロープ（ランプ基準で 3.5°）とセンターラインからの偏差を評価します。評価結果として **OK / OK- / (OK) / _NO_GRADE_ / CUT** を自動で付与します。
+米海軍式の LSO グレーディングに基づき、FLOLS を想定したグライドスロープ（ランプ基準で 3.5°）とセンターラインからの偏差を評価します。評価結果として `OK` / `OK-` / `(OK)` / `_NO_GRADE_` / `CUT` を自動で付与します。
 
 さらに、次のファクターを検出し、根拠データとともに記録します。
 
@@ -220,44 +227,29 @@ curl -H "X-Auth-Token: <token>" http://localhost:<DLT_PORT>/api/v1/imports/<job_
 
 **測定できなかった項目は採点しません。** たとえば、記録が短くグライドスロープを測定できない場合や、ヘリコプターで接地速度比に意味がない場合は、素点を持ちません（API では `score: null`）。これらの項目は重みごと合成から除外されます。
 
-中立点を置くと「測定したうえで平均的だった」と受け取られるためです。詳細画面には、未評価の項目とその理由を表示します。
+詳細画面には、未評価の項目とその理由を表示します。
+
 採点対象となった項目の重みが `min_measured_weight` に届かない着陸、つまり進入がほとんど記録されていない場合には成績を付けません。`grade` / `score` は `null` になります。
 
 ### 滑走路ジオメトリと対応マップ
 
-陸上着陸は、DCSServerBot の RestAPI 経由で **DCS 自身から取った実際の滑走路**
-（しきい値の位置・コース・長さ）を基準に採点します。`DLT_DCSSB_BASE_URL` が空の
-場合は接地点から推定したジオメトリにフォールバックします（精度は落ちますが外部
-サービス不要）。
+陸上着陸は、DCSServerBot の RestAPI 経由で DCS 自身から取った実際の滑走路（滑走路進入端の位置・コース・長さ）を基準に採点します。`DLT_DCSSB_BASE_URL` が空の場合は接地点から推定したジオメトリにフォールバックします。精度は落ちますが外部サービスは不要です。
 
-**マップごとの設定は不要です。** Caucasus / Nevada（Nellis）/ Syria / Mariana
-Islands など、どのマップでも同じ経路で動きます。
+マップごとの設定は不要です。Caucasus / Nevada / Syria / Mariana Islands など、どのマップでも動作します。
 
-- ACMI にマップ名は入りません（DCS は `Theater` を書き出しません）。そのため
-  着陸座標から「稼働中のどのサーバの theatre か」を判定し、そのマップだけを
-  1 回スイープして `cache/runways-<Theatre>.json` に保存します。判定に使う
-  `/servers` と `/airbases` は bot 内部の状態から返るため、DCS のシミュレーション
-  スレッドを消費しません。
-- したがって **そのマップを載せた DCS サーバが 1 台でも起動していること** が
-  スイープの条件です。過去の録画を import する場合も同じで、そのマップが今どこかで
-  動いていれば掃引され、動いていなければ推定ジオメトリになります。一度掃引すれば
-  以降はキャッシュだけで解決するので、サーバがマップを切り替えても過去の記録は
-  正しい滑走路に当たり続けます。
-- `DLT_DCSSB_SERVER_NAME` を指定した場合、そのサーバが **今実際に動かしている**
-  theatre だけが掃引対象になります（別マップを動かしている間は掃引しません）。
-- 平行滑走路（Nellis の 03L/21R・03R/21L など）は左右の区別を保ったまま扱われ、
-  接地点はしきい値までの距離ではなく延長センターラインからの横ずれで判定されます。
-- 解決できた滑走路は着陸行の「空港 / 空母」欄に `Nellis 03L` の形で入ります。
-  推定ジオメトリで採点された着陸は空欄のままです（どこに降りたか分からないため）。
+ACMI にマップ名は入りません（DCS は `Theater` を書き出しません）。そのため着陸座標から「稼働中のどのサーバの theatre か」を判定し、そのマップだけを1 回スイープして `cache/runways-<Theatre>.json` に保存します。判定に使う`/servers` と `/airbases` は bot 内部の状態から返るため、DCS のシミュレーションスレッドを消費しません。
 
-#### マップを1回だけ「押さえる」
+滑走路ジオメトリはそのマップがロードされている間しか取れません。terrain 側の `terrain.cfg.lua.pak.crypt` は暗号化されており、DCSServerBot の `/airbase` はロード中のミッションに対して Lua を実行するためです。
 
-滑走路ジオメトリは **そのマップがロードされている間しか取れません**。terrain 側の
-`terrain.cfg.lua.pak.crypt` は暗号化されており、DCSServerBot の `/airbase` は
-ロード中のミッションに対して Lua を実行するためです。つまり誰も飛んでいないマップは
-その場では取得できず、**一度捕まえて同梱しておく**のが唯一の方法になります。
+したがって、そのマップを載せた DCS サーバが 1 台でも起動していることがスイープの条件です。過去の録画を import する場合も同じで、そのマップが今どこかで動いていればスイープされ、動いていなければ推定ジオメトリになります。一度スイープすれば以降はキャッシュだけで解決するので、サーバがマップを切り替えても過去の記録は正しい滑走路に当たり続けます。
 
-そのための操作口があります（`DLT_AUTH_TOKEN` 設定時はトークンが必要）。
+`DLT_DCSSB_SERVER_NAME` を指定した場合、そのサーバが今実際に動かしている theatre だけがスイープ対象になります（別マップを動かしている間はスイープしません）。
+
+平行滑走路（Nellis の 03L/21R・03R/21L など）は左右の区別を保ったまま扱われ、接地点は滑走路進入端までの距離ではなく延長センターラインからの横ずれで判定されます。
+
+解決できた滑走路は着陸行の空港/空母欄に `Nellis 03L` の様なフォーマットで記録されます。推定ジオメトリで採点された着陸は空欄のままです（どこに降りたか分からないため）。
+
+そのためのエントリーポイントがあります（`DLT_AUTH_TOKEN` 設定時はトークンが必要）。
 
 ```bash
 # 1) いま何が解決でき、いま何を捕まえられるか
@@ -268,43 +260,41 @@ curl -s localhost:8000/api/v1/runways | jq
 # 2) 動いているうちに捕まえる（空港1つあたり約1.5秒。着陸が発生するのを待つ必要はない）
 curl -s -X POST 'localhost:8000/api/v1/runways/sweep?theatre=Nevada' | jq
 
-# 3) リポジトリに焼く → 以後どのビルドでも DCS サーバ無しで解決できる
+# 3) ローカルに保存する（以後どのビルドでも DCS サーバ無しで解決できる）
 curl -s localhost:8000/api/v1/runways/Nevada > config/runways/runways-Nevada.json
 ```
 
-`config/runways/` に置いた JSON は、Compose が `/app/config` へ読み取り専用で
-マウントします。読み込み順は **書き込み可能キャッシュ → 設定済み seed** で、
-そのサーバで掃引した結果が常に優先されます。Compose を使わない実行では、
-`DLT_RUNWAY_SEED_DIR` にこのディレクトリを指定します。
+`./config/runways/` に置いた JSON は、Compose が `/app/config` へ読み取り専用でマウントします。読み込み順は 書き込み可能キャッシュ → 設定済み seed で、そのサーバで掃引した結果が常に優先されます。
 
 #### ゲーム内フックで捕獲する（正確・推奨）
 
 seed geometry は DCSServerBot 経由ではなく、ゲーム内フックで取っています。
 
-1. [`scripts/dlt-capture-runways.lua`](scripts/dlt-capture-runways.lua) を
-   `<Saved Games>/<DCS>/Scripts/Hooks/` に置いてミッションをロードする
+1. [`scripts/dlt-capture-runways.lua`](scripts/dlt-capture-runways.lua) を `<Saved Games>/<DCS>/Scripts/Hooks/` に置いてミッションをロードする
 2. ロード完了時に `Logs/dlt-runways.json` へ全空港の滑走路が書き出される
-3. `python scripts/dlt_runways_from_dump.py dlt-runways.json` で
-   `config/runways/runways-<Theatre>.json` ができる（`"exact": true`）
+3. `python scripts/dlt_runways_from_dump.py dlt-runways.json` で `config/runways/runways-<Theatre>.json` が作成される（`"exact": true`）
 
-違いは座標変換です。DCS の x/z は横メルカトルの格子なので、外で緯度経度に直すには
-子午線収差だけでなく**縮尺係数**も要ります。DCSServerBot の `/airbase` は格子座標しか
-返さないためこの変換が近似になり、Caucasus で中央子午線（東経33°）から離れた東部の
-空港ほどしきい値が最大 18 m ずれることを実測しました。フックは DCS 自身の
-`coord.LOtoLL` で変換するので近似がありません。そのため `exact` なシードは
-そのサーバでのライブ掃引より**優先**されます。
+違いは座標変換方法です。
+
+DCS の x/z は横メルカトルの格子なので、外で緯度経度に変換するには子午線収差だけではなく縮尺係数も必要となります。
+
+DCSServerBot の `/airbase` は格子座標しか返さないためこの変換が近似となります。Caucasus では中央子午線（東経33°）から離れた東部の空港ほどしきい値が離れ、最大 18 m ずれることを実測しました。
+
+フックは DCS 自身の `coord.LOtoLL` で変換するので正確な値となります。
+
+そのため `exact` なシードはそのサーバでのライブ掃引より優先されます。
 
 設定済みの seed map: Caucasus / Nevada / MarianaIslands / PersianGulf / SinaiMap / Syria。
 
-DCS の `getRunways()` が返す滑走路名はそのまま信用していません。平行滑走路の L/R が無い
-（Nellis は `3` と `21` の2本）、別の滑走路に名前が付いている（Sinai の Ben-Gurion は
-08/26 が `21`、12/30 が `8`）といった例が実データにあるため、方位と合わない名前は捨てて
-方位から付け直し、平行滑走路には位置関係から L/C/R を付けます。
+DCSServerBot が無い環境でも、この形式の JSON を置くことで動作します。
 
-DCSServerBot が無い環境でも、この形式の JSON を置けば動きます。
+> [!NOTE]
+> DCS の `getRunways()` が返す滑走路名はそのまま信用していません。
+>
+>平行滑走路の L/R が無い（Nellis は `3` と `21` の2本）、別の滑走路に名前が付いている（Sinai の Ben-Gurion は 08/26 が `21`、12/30 が `8`）といった例が実データにあるため、方位と合わない名前は捨てて方位から付け直し、平行滑走路には位置関係から L/C/R を付与します。
 
 ```jsonc
-// config/runways/runways-Nevada.json（cache/ に置いたものと同一形式）
+// ./config/runways/runways-Nevada.json（cache/ に置いたものと同一形式）
 {
   "version": 2,          // CACHE_VERSION。古い版は無視され再掃引されます
   "theatre": "Nevada",
@@ -323,9 +313,9 @@ DCSServerBot が無い環境でも、この形式の JSON を置けば動きま�
 }
 ```
 
-### 閾値の調整（config/grading.yaml）
+### 閾値の調整（./config/grading.yaml）
 
-評価基準はすべて [`config/grading.yaml`](config/grading.yaml) に外部化されており、コード変更なしで調整できます。
+評価基準はすべて [`./config/grading.yaml`](./config/grading.yaml) に外部化されており、コード変更なしで調整できます。
 
 ```yaml
 geometry:
@@ -355,14 +345,24 @@ land_grading:
 
 ## 開発
 
-開発環境の構築・テスト実行の詳細は [`docs/development.md`](docs/development.md) を参照してください。
+開発環境の構築・テスト実行の詳細は [`./docs/development.md`](./docs/development.md) を参照してください。
+
+### バックエンド
 
 ```bash
-# バックエンド
-cd backend && uv sync --frozen --group dev --no-install-project && uv run ruff check . && uv run pytest -q
+cd backend
+uv sync
+uv run ruff check .
+uv run pytest -q
+```
 
-# フロントエンド
-cd frontend && npm ci && npm run build && npm test
+#### フロントエンド
+
+```
+cd frontend
+npm ci
+npm run build
+npm test
 ```
 
 ## ライセンス
