@@ -1,0 +1,427 @@
+{
+ "version": 3,
+ "theatre": "Caucasus",
+ "exact": true,
+ "runways": [
+  {
+   "airbase": "Anapa",
+   "name": "22",
+   "threshold_lat": 45.0133652,
+   "threshold_lon": 37.3595095,
+   "elevation_m": 43.0,
+   "heading_deg": 224.47,
+   "length_m": 2622.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Anapa",
+   "name": "04",
+   "threshold_lat": 44.996531,
+   "threshold_lon": 37.33614,
+   "elevation_m": 43.0,
+   "heading_deg": 44.47,
+   "length_m": 2622.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krasnodar",
+   "name": "09",
+   "threshold_lat": 45.0871624,
+   "threshold_lon": 38.9251949,
+   "elevation_m": 30.01,
+   "heading_deg": 91.16,
+   "length_m": 2322.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krasnodar",
+   "name": "27",
+   "threshold_lat": 45.0867375,
+   "threshold_lon": 38.9547739,
+   "elevation_m": 30.01,
+   "heading_deg": 271.16,
+   "length_m": 2322.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Novorossiysk",
+   "name": "22",
+   "threshold_lat": 44.6735221,
+   "threshold_lon": 37.7859594,
+   "elevation_m": 40.01,
+   "heading_deg": 225.27,
+   "length_m": 1714.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Novorossiysk",
+   "name": "04",
+   "threshold_lat": 44.6626702,
+   "threshold_lon": 37.7705563,
+   "elevation_m": 40.01,
+   "heading_deg": 45.27,
+   "length_m": 1714.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krymsk",
+   "name": "04",
+   "threshold_lat": 44.9611998,
+   "threshold_lon": 37.9861625,
+   "elevation_m": 20.01,
+   "heading_deg": 42.96,
+   "length_m": 2047.3,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krymsk",
+   "name": "22",
+   "threshold_lat": 44.9746733,
+   "threshold_lon": 38.0038981,
+   "elevation_m": 20.01,
+   "heading_deg": 222.96,
+   "length_m": 2047.3,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Maykop",
+   "name": "04",
+   "threshold_lat": 44.6712551,
+   "threshold_lon": 40.0216951,
+   "elevation_m": 180.01,
+   "heading_deg": 43.86,
+   "length_m": 3094.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Maykop",
+   "name": "22",
+   "threshold_lat": 44.6913153,
+   "threshold_lon": 40.0488136,
+   "elevation_m": 180.01,
+   "heading_deg": 223.86,
+   "length_m": 3094.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Gelendzhik",
+   "name": "04",
+   "threshold_lat": 44.5674895,
+   "threshold_lon": 38.004418,
+   "elevation_m": 22.01,
+   "heading_deg": 43.45,
+   "length_m": 1657.7,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Gelendzhik",
+   "name": "22",
+   "threshold_lat": 44.5783121,
+   "threshold_lon": 38.0188108,
+   "elevation_m": 22.01,
+   "heading_deg": 223.45,
+   "length_m": 1657.7,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Sochi",
+   "name": "06",
+   "threshold_lat": 43.4391334,
+   "threshold_lon": 39.9243759,
+   "elevation_m": 30.01,
+   "heading_deg": 66.7,
+   "length_m": 2935.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Sochi",
+   "name": "24",
+   "threshold_lat": 43.4495749,
+   "threshold_lon": 39.9577772,
+   "elevation_m": 30.01,
+   "heading_deg": 246.7,
+   "length_m": 2935.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krasnodar_P",
+   "name": "23",
+   "threshold_lat": 45.046312,
+   "threshold_lon": 39.2028268,
+   "elevation_m": 34.01,
+   "heading_deg": 231.35,
+   "length_m": 2956.4,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Krasnodar_P",
+   "name": "05",
+   "threshold_lat": 45.0297044,
+   "threshold_lon": 39.1734439,
+   "elevation_m": 34.01,
+   "heading_deg": 51.35,
+   "length_m": 2956.4,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Sukhumi",
+   "name": "30",
+   "threshold_lat": 42.8529706,
+   "threshold_lon": 41.142645,
+   "elevation_m": 13.34,
+   "heading_deg": 302.13,
+   "length_m": 3396.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Sukhumi",
+   "name": "12",
+   "threshold_lat": 42.869214,
+   "threshold_lon": 41.107353,
+   "elevation_m": 13.34,
+   "heading_deg": 122.13,
+   "length_m": 3396.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Gudauta",
+   "name": "15",
+   "threshold_lat": 43.1241248,
+   "threshold_lon": 40.5638415,
+   "elevation_m": 21.01,
+   "heading_deg": 156.27,
+   "length_m": 2380.1,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Gudauta",
+   "name": "33",
+   "threshold_lat": 43.1045293,
+   "threshold_lon": 40.5756406,
+   "elevation_m": 21.01,
+   "heading_deg": 336.27,
+   "length_m": 2380.1,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Senaki",
+   "name": "27",
+   "threshold_lat": 42.2389931,
+   "threshold_lon": 42.0610902,
+   "elevation_m": 13.24,
+   "heading_deg": 280.86,
+   "length_m": 2192.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Senaki",
+   "name": "09",
+   "threshold_lat": 42.2427047,
+   "threshold_lon": 42.034939,
+   "elevation_m": 13.24,
+   "heading_deg": 100.86,
+   "length_m": 2192.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "KOBULETI",
+   "name": "25",
+   "threshold_lat": 41.9323672,
+   "threshold_lon": 41.8763967,
+   "elevation_m": 18.01,
+   "heading_deg": 255.93,
+   "length_m": 2238.2,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "KOBULETI",
+   "name": "07",
+   "threshold_lat": 41.9274706,
+   "threshold_lon": 41.850153,
+   "elevation_m": 18.01,
+   "heading_deg": 75.93,
+   "length_m": 2238.2,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "KUTAISI",
+   "name": "25",
+   "threshold_lat": 42.1794201,
+   "threshold_lon": 42.495624,
+   "elevation_m": 45.01,
+   "heading_deg": 260.36,
+   "length_m": 2395.8,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "KUTAISI",
+   "name": "07",
+   "threshold_lat": 42.1758115,
+   "threshold_lon": 42.4669611,
+   "elevation_m": 45.01,
+   "heading_deg": 80.36,
+   "length_m": 2395.8,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "MinVody",
+   "name": "30",
+   "threshold_lat": 44.2188754,
+   "threshold_lon": 43.1008835,
+   "elevation_m": 320.01,
+   "heading_deg": 302.47,
+   "length_m": 3719.3,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "MinVody",
+   "name": "12",
+   "threshold_lat": 44.2368299,
+   "threshold_lon": 43.0614993,
+   "elevation_m": 320.01,
+   "heading_deg": 122.47,
+   "length_m": 3719.3,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Nalchick",
+   "name": "06",
+   "threshold_lat": 43.5098344,
+   "threshold_lon": 43.6252751,
+   "elevation_m": 430.01,
+   "heading_deg": 62.79,
+   "length_m": 2026.8,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Nalchick",
+   "name": "24",
+   "threshold_lat": 43.5181689,
+   "threshold_lon": 43.6476276,
+   "elevation_m": 430.01,
+   "heading_deg": 242.79,
+   "length_m": 2026.8,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Mozdok",
+   "name": "26",
+   "threshold_lat": 43.7915722,
+   "threshold_lon": 44.6203322,
+   "elevation_m": 154.61,
+   "heading_deg": 270.76,
+   "length_m": 2327.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Mozdok",
+   "name": "08",
+   "threshold_lat": 43.791849,
+   "threshold_lon": 44.5913446,
+   "elevation_m": 154.61,
+   "heading_deg": 90.76,
+   "length_m": 2327.0,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Lochini",
+   "name": "13",
+   "threshold_lat": 41.6745352,
+   "threshold_lon": 44.9466214,
+   "elevation_m": 479.69,
+   "heading_deg": 136.09,
+   "length_m": 2315.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Lochini",
+   "name": "31",
+   "threshold_lat": 41.6595325,
+   "threshold_lon": 44.9659541,
+   "elevation_m": 479.69,
+   "heading_deg": 316.09,
+   "length_m": 2315.6,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "TbilisiMilitary",
+   "name": "32",
+   "threshold_lat": 41.6413343,
+   "threshold_lon": 44.9474586,
+   "elevation_m": 449.41,
+   "heading_deg": 320.36,
+   "length_m": 2370.5,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "TbilisiMilitary",
+   "name": "14",
+   "threshold_lat": 41.6577503,
+   "threshold_lon": 44.9292568,
+   "elevation_m": 449.41,
+   "heading_deg": 140.36,
+   "length_m": 2370.5,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Vaziani",
+   "name": "13",
+   "threshold_lat": 41.6375778,
+   "threshold_lon": 45.0188065,
+   "elevation_m": 464.5,
+   "heading_deg": 143.63,
+   "length_m": 2361.7,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Vaziani",
+   "name": "31",
+   "threshold_lat": 41.6204741,
+   "threshold_lon": 45.0356545,
+   "elevation_m": 464.5,
+   "heading_deg": 323.63,
+   "length_m": 2361.7,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Beslan",
+   "name": "10",
+   "threshold_lat": 43.2082412,
+   "threshold_lon": 44.5888514,
+   "elevation_m": 524.01,
+   "heading_deg": 101.59,
+   "length_m": 2805.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Beslan",
+   "name": "28",
+   "threshold_lat": 43.2031711,
+   "threshold_lon": 44.6227649,
+   "elevation_m": 524.01,
+   "heading_deg": 281.59,
+   "length_m": 2805.9,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Batumi",
+   "name": "31",
+   "threshold_lat": 41.6034824,
+   "threshold_lon": 41.6095134,
+   "elevation_m": 10.04,
+   "heading_deg": 311.4,
+   "length_m": 2056.3,
+   "width_m": 60.0
+  },
+  {
+   "airbase": "Batumi",
+   "name": "13",
+   "threshold_lat": 41.6157115,
+   "threshold_lon": 41.5909605,
+   "elevation_m": 10.04,
+   "heading_deg": 131.4,
+   "length_m": 2056.3,
+   "width_m": 60.0
+  }
+ ]
+}
