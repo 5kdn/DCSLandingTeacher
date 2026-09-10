@@ -32,10 +32,18 @@ Tacview の ACMI データストリームから記録・評価し、ブラウザ
 
 ```mermaid
 flowchart LR
-    DCS[DCS Dedicated Server + Tacview] -- "ACMI TCP" --> API["FastAPI<br/>(ingest → detect → grade)"]
-    API --> DB[(PostgreSQL<br/>Docker volume)]
-    PROXY[Reverse proxy] --> UI[React Frontend]
-    PROXY --> API
+    BROWSER[Browser] --> PROXY
+    DCS["DCS Dedicated Server<br/>+<br/>Tacview"] -- "ACMI TCP" --> API
+    CONFIG["config/<br/>(grading.yaml, carriers.yaml)"] -. "read-only mount" .-> API
+
+    subgraph COMPOSE[Docker Compose]
+        direction LR
+        PROXY[Reverse proxy] --> UI["Frontend<br/>(React + nginx)"]
+        PROXY -- "REST + WebSocket" --> API["FastAPI<br/>(ingest → detect → grade)"]
+        API --> DB[("PostgreSQL<br/>postgres_data volume")]
+        MIGRATION["migration-job<br/>(Alembic)"] --> DB
+        MIGRATION -. "runs before API starts" .-> API
+    end
 ```
 
 本番環境では、リバースプロキシ配下でフロントエンドと FastAPI を別コンテナとして起動します。
